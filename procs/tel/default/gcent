@@ -1,0 +1,87 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#    # gcent -- move an object to the center of the guider pickoff mirror
+#
+# SYNOPSIS
+#	gcent [-n] x y
+# 
+# DESCRIPTION
+#	Given the pixel coordinates of an object on a KCWI guider image,
+#	compute and apply the required telescope move to bring the
+#	object to the center of the field of view for the KCWI TV
+#	guider pickoff mirror (pixel coordinates x=512, y=800).
+# 
+# ARGUMENTS
+#	-n = no move, only print the required shift
+#	x = column location of object [pixels]
+#	y = row location of object [pixels]
+# 
+# OPTIONS
+#
+# EXAMPLES
+#	1) Move a target at pixel (100,200) to the pickoff mirror center:
+#		gcent 100 200
+#
+#	2) Display the telescope move required to shift a target at
+#	pixel (100,200) to the pickoff mirror center, without 
+#	actually performing the move:
+#		gcent -n 100 200
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#
+# SCRIPTS CALLED
+#      gxy
+#
+# EXIT STATUS
+#	0 = normal completion
+#	 1 = wrong number of arguments
+#
+# Modification history:
+#	2011apr27	MK	Original version
+#-------------------------------------------------------------
+
+# check for no-move flag...
+if ( "$1" == "-n" ) then
+  set move = 0
+  shift
+else
+  set move = 1
+endif
+
+# check args...
+if (${#argv} != 2) then  
+  echo "Usage: gcent [-n] x y"
+  exit 1
+endif
+
+# set scale...
+set gscale = `show -s kcwi gscale`
+
+#set guider center
+set xcent = 512
+set ycent = 512
+
+# verify floating-point values...
+is_float $* > /dev/null
+if ( $status ) then
+  echo "ERROR -- Argument must be valid floating-point numbers"
+  exit 2
+endif
+
+# compute shifts...
+set dx = `calc "$gscale*($1 - $xcent)"`
+set dy = `calc "$gscale*($ycent - $2)"`
+if ( ! $move ) then
+  echo "Move $dx pixels in x and $dy pixels in y"
+  exit
+endif
+
+# apply shift...
+gxy $dx $dy

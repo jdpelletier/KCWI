@@ -1,0 +1,89 @@
+#!/bin/tcsh -f 
+#
+# 160426 
+# Matuszewski -- matmat@caltech.edu
+#
+# Purpose is to stow the calibration unit in preparation for on-sky
+# observations. The axes are moved as follows.
+# 
+# Cal X-Y go to "Dark" position
+# Cal pupil rotator unchanged
+# Cal mirror to SKY
+# Cal filter unchanged
+# Cal polarizer unchanged
+# IFU unchanged
+# 
+# Polarizer/Filter and IFU stages are deemed part of the science
+# settings, and thus not altered here. 
+#
+# Additionally, all lamps are turned off, and all shutters are closed
+#
+
+# axes to be moved to specific positions
+set axes=( calm calx caly )
+set pos=( 0 0 0 )
+
+set delay=0.5
+# make sure cal server is running
+    if ( ! `kcwiCheckServer kcas` ) then
+	echo "Error: KCAS not running" > /dev/stderr
+	exit -1
+    endif
+    
+
+    echo "Turning off lamps."
+    # turn off lamps.
+    kcas_lamp all off >> /dev/null
+
+    # close shutters
+    kcas_shutter thar close >> /dev/null
+    sleep $delay
+    
+    kcas_shutter fear close >> /dev/null
+    
+    onintr intlabel
+    # check that all axes are homed.
+    @ ctr=1
+    foreach axis ( $axes ) 
+	echo "Parking $axis."
+	set homed=`show -t -s kcas ${axis}homed`
+	if ( $status ) then 
+	    echo "Error: Could not get CAL axis $axis status." >> /dev/stderr
+	    exit -1
+	endif 
+	if ( $homed ) then
+	    kcas_movelin $axis $pos[$ctr] >> /dev/null
+	    if ( $status ) then
+		echo "Warning: $axis move failed." >> /dev/stderr
+	    else 
+		set newpos=`show -t -s kcas ${axis}name`
+		echo "Success: $axis at $newpos" >> /dev/stderr
+	    endif
+	else 
+	    echo "Warning: $axis not homed." >> /dev/stderr
+	endif
+	@ ctr++
+    #end foreach axis $axes
+    end
+
+echo "Success! CAL Parked."
+exit 0
+
+### END OF SCRIPT
+
+
+### HANDLE CTRL+C here. 
+intlabel:
+    echo "Warning: CTRL+C caught" >> /dev/stderr
+    onintr
+    # abort moves
+    set res=`show -t -s kcas status`
+    if ( $res == "Moving" ) then
+	modify -s kcas abort=1
+	if ( $status ) then
+	    echo "Error: Could not abort motion." >> /dev/stderr
+	    exit -3
+	endif
+    endif
+    echo "Warning: You may need to adjust stages" >> /dev/stderr
+    exit -2

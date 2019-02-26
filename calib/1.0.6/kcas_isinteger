@@ -1,0 +1,13 @@
+#!/bin/bash
+# Checks if the first parameter is an integer
+#
+# Print 1 if the value is an integer, 0 otherwise. 
+
+if [ -n "$1" -a $1 -eq $1 2> /dev/null ] ; then
+    echo "1";
+	else
+    echo "0";
+fi;
+
+exit 0
+

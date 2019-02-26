@@ -1,0 +1,118 @@
+#!/bin/csh -f
+#+
+# MOSFIRE library of scripts
+#
+# NAME
+#       gomark - restore telescope position to saved offsets
+#
+# SYNOPSIS
+#	gomark
+# 
+# DESCRIPTION
+#       moves to the position defined by the keywords "raoffset" and
+#       "decoffset", which are normally loaded by the command "mark".
+#
+# ARGUMENTS
+# 
+# OPTIONS
+#
+# EXAMPLES
+#	gomark
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#    server: mosfire, dcs
+#      keywords: raoffset, decoffset, raoff, decoff
+#
+# SCRIPTS CALLED
+#
+#      
+#
+# EXIT STATUS
+#	0 = normal completion
+#
+# Modification history:
+#	2011apr27	MK	Original version
+#	2012-Nov-27	GDW	Added wait for telescope move to complete
+#       2013-Apr-30     MK      Added code to check for RA and DEC offsets
+#                               and exit if they are both zero.
+#       2014-Apr-08     MK      Added logging to the command
+#-------------------------------------------------------------
+
+# Set default variable values
+set cmd = `basename $0`
+
+
+# Boiler plate for "-h" support for command autohelp.
+
+if ("$1" == "-h") then
+    help $0
+    exit $status
+endif
+
+# Boilerplate for syncheck.
+# Note that the boiler plate should be transparent for all usages,
+# but to make correct use of syncheck you will need to specify the
+# correct pattern.
+
+ set noglob
+ set CheckStatus = `syncheck -command $0 $* -pattern ` 
+ unset noglob
+
+if ("$CheckStatus" != "OK") then
+    help $0
+    exit 1
+endif
+
+# End of help/syncheck boiler plate.
+
+set ra_off = `show -s mosfire -terse raoffset`
+set dec_off = `show -s mosfire -terse decoffset`
+
+
+set pattern = `show -s mosfire -terse pattern`
+if ( "$pattern" == "Stare" ) then
+    printf "NOTE: Dither mode is set to Stare, so skipping \n"
+    printf "       move to base in gomark script -- exiting\n"
+    exit 0
+endif
+
+
+# Added this to skip the modify and wait if both 
+# offsets are zero indicating no moves should be 
+# made anyway. This is critical for stare mode.
+# when we are simply taking biases.
+if ( "$ra_off" == "0" && "$dec_off" == "0" ) then
+    printf "[$cmd] NOTE: RA and DEC moves are both zero -- exiting\n"
+    exit 0
+endif
+
+# Grab the current value of autpause...
+set autresum = `show -s dcs -terse autresum`
+
+
+
+# move
+set gomarkcommand = "modify -s dcs raoff = $ra_off decoff = $dec_off rel2base = t"
+
+$gomarkcommand
+
+#log the move. This should be temporary because it adds 0.05 sec to 
+# the execution of the mxy command.
+set exec_date = `date -u +"%Y/%m/%d,%T"`
+set nightpath = `nightpath`instrumentOffsets
+mosfireScriptMsg -f $nightpath -m "$exec_date        $gomarkcommand" 
+
+
+# wait for guider to cycle twice...
+@ startTime = `date +"%s"`
+wftel $autresum
+@ endTime = `date +"%s"`
+@ elapsedTime = $endTime - $startTime
+echo "[$cmd] wftel completed in $elapsedTime sec"
+exit
+
+

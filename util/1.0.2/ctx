@@ -1,0 +1,316 @@
+#!/bin/tcsh -f
+#+
+# ctx - 
+#
+# Purpose:
+#       Cleans output from ct command.  
+# Usage:
+#       ctx
+# 
+# Arguments:
+#	-P, List PIDs from ct
+# 
+# Output:
+#	Stdout
+# 
+# Restrictions:
+#	Runs on nuu (MOSFIRE_HOST) as mosfire numbered account
+# 
+# Exit values:
+#       0 = normal completion
+#       1 = problem
+#
+# Example:
+#       1) ctx
+#
+#
+#-
+# Modification history:
+#       2005 Nov 02     jlyke   original version
+#	2005 Nov 15 	jlyke 	changed name to ctx from ctx2
+#       2010 Sep 28     caj     modified for MOSFIRE
+#       2012 Oct 18     jlyke   eliminated syncheck
+#-----------------------------------------------------------------------
+set cthost = `/bin/hostname`
+
+set noglob
+#set CheckStatus = `syncheck -command $0 $* -pattern {[-P]} {[-nokgswarn]}` 
+unset noglob
+
+#if ("$CheckStatus" != "OK") then
+#    help $0 | more
+#    exit 2
+#endif
+set Check
+
+alias ct $KROOT/rel/default/bin/ct
+
+set nokgswarn=0
+if ($#argv > 0) then
+    if ("$1" == "-nokgswarn") then
+	set nokgswarn=1
+    endif
+endif
+
+# Write normal ct output to a tmp file
+ct > /tmp/ct.$$
+
+# Set process lists
+set   det_list = ( kbds )
+set   fpc_list = ( kfcs )
+set motor_list = ( kbes kbms kros kcas )
+set power_list = ( kp1s kp2s kp3s )
+set  temp_list = ( kt1s kt2s )
+set  pres_list = ( kbvs kbgs )
+
+# Break out errors, counts, totals, and computers based on type of server
+
+set d_error = 0
+set f_error = 0
+set m_error = 0
+set p_error = 0
+set r_error = 0
+set t_error = 0
+set g_error = 0
+
+set d_count = 0
+set f_count = 0
+set m_count = 0
+set p_count = 0
+set r_count = 0
+set t_count = 0
+set g_count = 0
+
+set d_total = $#det_list
+set f_total = $#fpc_list
+set m_total = $#motor_list
+set p_total = $#power_list
+set r_total = $#pres_list
+set t_total = $#temp_list
+set g_total = 1
+
+switch ($cthost)
+  case kcwibuild:
+  case kcwidev2:
+  case kcwitarg2:
+    set d_comp = kcwibuild
+    set f_comp = kcwibuild
+    set m_comp = kcwibuild
+    set p_comp = kcwibuild
+    set r_comp = kcwibuild
+    set t_comp = kcwibuild
+    set g_comp = kcwibuild
+  breaksw
+  case vm-KCWIserver:
+  case kcwiserver:
+    set d_comp = kcwitarg
+    set f_comp = $cthost
+    set m_comp = $cthost
+    set p_comp = $cthost
+    set r_comp = $cthost
+    set t_comp = $cthost
+    set g_comp = $cthost
+  breaksw
+endsw
+
+### Now for the code
+
+# check that we get 1 pid's for each detector
+foreach det ($det_list)
+  set count = 0
+  set count = `grep -c -w $det /tmp/ct.$$ | grep -v Gui | grep -v gui`
+  if ( $count != 1 ) then
+    echo "\aWarning -- $det has $count process(es). It should have exactly 1."
+    @ d_error++
+  endif
+  @ d_count = ( $d_count + $count )
+end
+
+# check that we get 1 pid's for each detector
+foreach det ($fpc_list)
+  set count = 0
+  set count = `grep -c -w $det /tmp/ct.$$ | grep -v Gui | grep -v gui`
+  if ( $count != 1 ) then
+    echo "\aWarning -- $det has $count process(es). It should have exactly 1."
+    @ d_error++
+  endif
+  @ f_count = ( $f_count + $count )
+end
+
+# check that we get 1 pid's for each motor
+foreach motor ($motor_list)
+  set count = 0
+  set count = `cat /tmp/ct.$$ | grep -v Gui | grep -c $motor | grep -v gui`
+  if ( $count != 1 ) then
+    echo "\aWarning -- $motor has $count process(es). It should have exactly 1."
+    @ m_error++
+  endif
+  @ m_count = ( $m_count + $count )
+end
+
+# check that we get 1 pid's for each power
+foreach power ($power_list)
+  set count = 0
+  set count = `grep -c $power /tmp/ct.$$`
+  if ( $count != 1 ) then
+    echo "\aWarning -- $power has $count process(es). It should have exactly 1."
+    @ p_error++
+  endif
+  @ p_count = ( $p_count + $count )
+end
+
+# check that we get 1 pid's for each temp
+foreach temp ($temp_list)
+  set count = 0
+  set count = `grep -c $temp /tmp/ct.$$`
+  if ( $count != 1 ) then
+    echo "\aWarning -- $temp has $count process(es). It should have exactly 1."
+    @ t_error++
+  endif
+  @ t_count = ( $t_count + $count )
+end
+
+# check that we get 1 pid's for each pressure
+foreach pres ($pres_list)
+  set count = 0
+  set count = `grep -c $pres /tmp/ct.$$`
+  if ( $count != 1 ) then
+    echo "\aWarning -- $pres has $count process(es). It should have exactly 1."
+    @ r_error++
+  endif
+  @ r_count = ( $r_count + $count )
+end
+
+
+# check that we get 1 pid's for each of mgs, mds
+set pid = kcwi
+set count = 0
+set count = `grep -c "\- $pid" /tmp/ct.$$`
+
+if ( $count != 1 ) then
+  if ($nokgswarn == 0) then
+    echo "\aWarning -- $pid has $count process(es). It should have exactly 1."
+    @ g_error++
+  endif
+else
+  @ g_count++
+endif
+
+# Print out the results to the screen
+if ( $m_error == 0 && $p_error == 0 && $t_error == 0 && \
+     $g_error == 0 && $d_error == 0 && $f_error == 0 ) then
+  echo "====================================="
+  echo "All the required servers are running."
+  @ exit_status = 0
+else
+  echo "================================================"
+  echo "\aWarning -- There are missing server processes."
+   @ exit_status = 2
+endif
+
+# Notify the user how many of each server are running
+echo ""
+echo " $d_count of $d_total detector servers running on $d_comp"
+echo " $f_count of $f_total focal plane camera server running on $f_comp"
+echo " $m_count of $m_total motor servers running on $m_comp"
+echo " $p_count of $p_total power servers running on $p_comp"
+echo " $r_count of $r_total pressure servers running on $r_comp"
+echo " $t_count of $t_total temperature servers running on $t_comp"
+echo " $g_count of $g_total global servers running on $g_comp"
+
+# Notify the user which GUIs are running
+set gui = `grep -c Gui /tmp/ct.$$`
+if ( $gui == 0 ) then
+  echo ""
+  echo "There are no GUIs currently running."
+else
+  echo ""
+  echo "The following GUIs are currently running:"
+  echo "username    pid    service"
+  echo "--------    ---    -------"
+  grep Gui /tmp/ct.$$
+endif
+
+
+# Notify the user which python scritps are running
+set disp = `grep -c "python" /tmp/ct.$$`
+if ( $disp == 0 ) then
+  echo ""
+  echo "No python scripts are running"
+else
+  echo ""
+  echo "The following python scripts are currently running:"
+  echo "username    pid    service"
+  echo "--------    ---    -------"
+  grep python /tmp/ct.$$
+endif
+
+# Notify the user which csh scritps are running
+set disp = `grep -c "csh-" /tmp/ct.$$`
+if ( $disp == 0 ) then
+  echo ""
+  echo "No csh scripts are running"
+else
+  echo ""
+  echo "The following csh scripts are currently running:"
+  echo "username    pid    service"
+  echo "--------    ---    -------"
+  grep "csh-" /tmp/ct.$$
+endif
+
+# Notify the user if keygrabber is running
+set disp = `grep -c "keygrabber" /tmp/ct.$$`
+if ( $disp == 0 ) then
+  echo ""
+  echo "keygrabber is not running"
+else
+  echo ""
+  echo "The following keygrabber processes are currently running:"
+  echo "username    pid    service"
+  echo "--------    ---    -------"
+  grep "keygrabber" /tmp/ct.$$
+endif
+
+# Notify the user if watchrot is running
+set disp = `grep -c "watchrot" /tmp/ct.$$`
+if ( $disp == 0 ) then
+  echo ""
+  echo "watchrot is not running"
+else
+  echo ""
+  echo "The following watchrot processes are currently running:"
+  echo "username    pid    service"
+  echo "--------    ---    -------"
+  grep "watchrot" /tmp/ct.$$
+endif
+
+# Notify the user if the configuration manager is running
+set disp = `grep -c "kcwiConfManager.py" /tmp/ct.$$`
+if ( $disp == 0 ) then
+  echo ""
+  echo "The configuration manager (kcwiConfManager) is not running"
+else
+  echo ""
+  echo "The following kcwiConfManger processes are currently running:"
+  echo "username    pid    service"
+  echo "--------    ---    -------"
+  grep "kcwiConfManager.py" /tmp/ct.$$
+endif
+
+
+if (("$1" == "-P") || ("$1" == "-p")) then
+  echo
+  cat /tmp/ct.$$ | tail -n +7
+else 
+# Notify the user of the 'ct' command
+echo
+echo "To view the running processes, execute the command: ctx -P"
+echo "============================================================"
+endif
+
+# Clean up
+# unalias echo
+\rm /tmp/ct.$$
+
+exit $exit_status
+

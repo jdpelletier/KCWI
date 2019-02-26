@@ -1,0 +1,66 @@
+#!/bin/csh
+#
+# +
+# MM 161109
+# Moves the polarizer to specified angle
+#
+# Note that once fixed, the python version 'polangle' is probably
+# better to use
+# 
+# -
+#
+
+if ($# != 1) then 
+    show -s kcas callangle
+    exit 0
+endif
+
+set ang=$1
+
+set starttimeout=5
+set movetimeout=30
+
+if ( (! `kcas_isfloat $ang`) | ( `echo "$ang > 360.0 || $ang < -360.0" | bc -l `) ) then
+    echo 'Invalid angle: "$ang" Exiting' >>& /dev/stderr
+    exit 2
+endif
+
+if ( ! `show -t -s kcas callhomed` ) then 
+    echo 'Polarizer axis not homed. Exiting.' >>& /dev/stderr
+    exit 3
+endif
+
+# make sure move is necessary
+set callang=`show -t -s kcas callangle`
+
+if ( `echo "( ($ang - $callang) > (-0.1)  ) && ( ($ang - $callang) < 0.1)" | bc -l` ) then
+    show -t -s kcas callangle
+    exit 0
+endif
+
+#do the move 
+modify -s kcas calltarga=$ang  >>& /dev/null
+modify -s kcas callmove=1 >>& /dev/null
+
+# wait for the move to initate.
+gwaitfor -t $starttimeout -s kcas '$status != "OK"'
+if ( $status ) then
+    echo 'Polarizer move failed to start. Exiting.' >>& /dev/stderr
+    exit 4
+endif
+
+# wait for the move to complete
+gwaitfor -t $movetimeout -s kcas '$status != "Moving"'
+if ( $status ) then
+    echo 'Polarizer move did not complete successfully' >>& /dev/stderr
+    exit 5
+endif 
+
+set stat=`show -t -s kcas status`
+if ( $status == Error ) then 
+    echo 'Polarizer move failed.' >>& /dev/stderr
+    exit 6
+endif
+
+show -t -s kcas callangle
+exit 0

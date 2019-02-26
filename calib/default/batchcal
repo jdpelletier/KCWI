@@ -1,0 +1,58 @@
+#!/bin/csh
+#
+# 170516
+# Matuszewski
+#
+# Do a batch calibration 
+# 
+# 1. Make a calibration file for the state file
+# 2. copy the state file, except for the cal_mirror line to a 
+#    temporary filename (same filename, but in /tmp/
+# 3. restore state for the temporary filename
+# 4. make calibration file for 
+
+echo "I am doing something."
+
+if ( $# == 0 ) then
+   echo "Insufficient arguments. Exiting." >> /dev/null	
+   exit -1
+endif
+
+@ nargs = $#
+
+@ ctr=1
+
+set tmpdir=/tmp
+echo $nargs
+while ( $ctr <= $nargs ) 
+echo $ctr
+      echo $argv[$ctr]
+      set fname=$argv[$ctr]
+      # Skip if the file does not exist
+      if ( ! -f $fname ) then
+      	 echo  \"$fname\" is not a file. Continuing.
+	 @ ctr++
+	 continue
+      else 
+      # Process if the file does exist 
+         set tmpfname=${tmpdir}/$fname:t
+	 echo $tmpfname found
+	 # in the afternoon, we don't want to waste
+	 # time moving the mirror around or moving the
+	 # nod-and-shuffle mask in-and-out
+	 grep -v cal_mirror $fname > $tmpfname
+	 grep -v nsmaskb $tmpfname > $tmpfname
+	 cat "nsmaskb = Open" >> $tmpfname
+	 # make a calibration file 
+	 makecalib $fname
+	 # restore the state (modulo cal_mirror)
+	 restore_state $tmpfname
+	 # run the calibration!
+	 calib $fname:r.cal
+	 echo "Here."
+
+      endif
+
+@ ctr++
+end
+

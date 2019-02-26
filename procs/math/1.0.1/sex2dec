@@ -1,0 +1,54 @@
+#!/usr/bin/perl -w
+#+
+# sex2dec -- convert from sexagesimal to decimal
+#
+# Purpose:
+#	Given a sexagesimal value, return decimal equivalent
+#
+# Usage:
+#	sex2dec <value>
+# 
+# Arguments:
+#	value = DD:MM:SS.SS
+# 
+# Output:
+#	to stdout
+# 
+# Restrictions:
+# 
+# Exit values:
+#	 0 = normal completion
+#	 1 = wrong number of arguments
+#
+# Example:
+#
+#-
+# Modification history:
+#	2008-Oct-25	GDW	Original version
+#-----------------------------------------------------------------------
+
+my( $usage) = "sex2dec DD:MM:SS.SS";
+
+die "Usage: $usage\n" if scalar(@ARGV) != 1;
+
+my( $sex) = shift @ARGV;
+my( $sign) = '';
+my( $dd, $mm, $ss, $dec);
+
+if ( $sex =~ m/^([\+\-])?(\d+):(\d\d+):([\d\.]+)$/ ) {
+
+  $sign = $1;
+  $dd = $2;
+  $mm = $3;
+  $ss = $4;
+
+  $dec = $dd + $mm/60 + $ss/(60*60);
+  if ( defined($sign) and ($sign eq '-' )){
+    $dec = -1 * $dec;
+  }
+
+  print "$dec\n";
+
+} else {
+  die "input must be in format DD:MM:SS.SS\n"
+}

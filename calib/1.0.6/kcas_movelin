@@ -1,0 +1,367 @@
+#!/bin/csh -f
+#+
+#KCWI library of scripts
+# 
+#NAME
+#     kcas_movelin -- mover specified calibration linear axis to 
+#                     specified position station
+#
+#SYNOPSIS
+#     kcas_movelin axis position
+#
+#DESCRIPTION
+#     Move the specified axis driven by the KCWI calibration motor
+#     controller (Galil) and controlled by the kcas server to a 
+#     named or numbered defined position
+#     
+#     The script verifies that the required server is running, and
+#     that the axis in question is homed.
+#   
+#     The script captures CTRL-C, aborting the move when it occurs
+#
+#ARGUMENTS
+#     axis - one of calx, caly, calm, calp, ifu
+#     position - either a named keyword value valid for the specified axis
+#                or a valid position number for that axis
+#
+#OPTIONS
+#     kcas_movelin ifu large
+#         moves the IFU/Slicer stage to the Large slicer position
+#     kcas_movlin calx 5
+#         moves the CALX object selector stage to the 5th named
+#         position
+#
+#ENVIRONMENT VARIABLES
+#    
+#FILES
+#
+#SERVERS & KEYWORDS
+#     kcas - kcwi calibration server
+#     (calx/caly/calp/calm/ifu)targp - numbered position keyword
+#
+#EXIT STATUS
+#     0 - normal exit, no error
+#     1 - scripted aborted by an interrupt
+#     2 - parameter error
+#     3 - invalid axis
+#     4 - invalid position
+#     5 - server not running
+#     6 - axis not homed
+#     7+ ...
+# 
+#SEE ALSO
+#
+#-
+# Modification History:
+# 2016-04-25 MM (matmat@caltech.edu) Original Version
+# 
+#
+
+# parameter count should be 2
+
+if ("$1" == "-h") then
+    help $0 | more
+    exit $status
+endif
+
+
+if ( $# != 2 ) then
+    echo "Error: Invalid number of parameters." >> /dev/stderr
+    exit 2
+endif
+
+# name the parameters
+set axis=$1
+set position=$2
+
+# convert axis to lowercase
+set axisname=`echo $axis | tr "[A-Z]" "[a-z]"`
+
+# check it is a valid axis
+switch ( $axisname )
+    case calx:
+	set minpos=0
+	set maxpos=13
+	set timeout=80
+    breaksw
+    case caly:
+	set minpos=0
+	set maxpos=13
+	set timeout=80
+    breaksw
+    case calp:
+	set minpos=0
+	set maxpos=2
+	set timeout=80
+    breaksw
+    case calm:
+	set minpos=0
+	set maxpos=2
+	set timeout=80
+    breaksw
+    case ifu:
+	set minpos=0
+	set maxpos=4
+	set timeout=240
+    breaksw
+    default:
+	echo "Error: Invalid axis." >> /dev/stderr
+	exit 3
+    breaksw
+
+endsw
+
+# basic timeout
+set basictimeout=1
+set oktimeout=5
+
+
+# convert position to lowercase
+set pos=`echo $position | tr "A-Z" "a-z"`
+if ( ( $axisname == "calx" ) || ( $axisname == "caly" ) ) then
+    switch ( $pos )
+	case dark:
+	case 0:
+	    set position=0
+	breaksw
+	case pin300:
+	case 1:
+	    set position=1
+	breaksw
+	case medbarsa:
+	case medbars:
+	case 2:
+	    set position=2
+	breaksw
+	case medbarsb:
+	case 3:
+	    set position=3
+	breaksw
+	case finbars:
+	case finebars:
+	case 4:
+	    set position=4
+	breaksw
+	case diaglin:
+	case 5:
+	    set position=5
+	breaksw
+	case flata:
+	case flat:
+	case 6:
+	    set position=6
+	breaksw
+	case flatb:
+	case 7:
+	    set position=7
+	breaksw
+	case lrgbarsa:
+	case lrgbars:
+	case bigbars:
+	case 8:
+	    set position=8
+	breaksw
+	case lrgbarsb:
+	case lrgbars:
+	case 9:
+	    set position=9
+	breaksw
+	case pin500:
+	case 10:
+	    set position=10
+	breaksw
+	case tpat:
+	case 11:
+	    set position=11
+	breaksw
+	case horlin:
+	case 12:
+	    set position=12
+	breaksw
+	case mira:
+	case 13:
+	    set position=13
+	breaksw
+	default:
+	    echo "Error: Unknown position for ${axisname}: '$position'." >> /dev/stderr
+	    exit 4
+	breaksw
+    endsw
+else if ( $axisname == "ifu" ) then
+    switch ( $pos )
+	case home:
+	case 0:
+	    set position=0
+	breaksw
+	case small:
+	case 3:
+	    set position=3
+	breaksw
+	case medium:
+	case 2:
+	    set position=2
+	breaksw
+	case large:
+	case big:
+	case 1: 
+	    set position=1
+	breaksw
+	case fpcam:
+	case camera:
+	case fpc:
+	case 4:
+	    set position=4
+	breaksw
+	case aux:
+	case 5:
+	    set position=5
+	breaksw
+	default:
+	    echo "Error: Unknown position for ${axisname}: '$position'." >> /dev/stderr
+	    exit 4
+	breaksw
+    endsw
+else if ( $axisname == "calm" ) then
+    switch ( $pos )
+	case sky:
+	case 0:
+	    set position=0
+	breaksw
+	case mirror:
+	case 1:
+	    set position=1
+	breaksw
+	case filter:
+	case 2:
+	    set position=2
+	breaksw
+	default:
+	    echo "Error: Unknown position for ${axisname}: '$position'." >> /dev/stderr
+	    exit 4
+	breaksw
+    endsw
+else if ( $axisname == "calp" ) then
+      switch ( $pos ) 
+	case sky:
+	case 0:
+	    set position=0
+	breaksw
+	case polar:
+	case 1:
+	    set position=1
+	breaksw
+	case lens:
+	case 2:
+	    set position=2
+	breaksw
+	default:
+	    echo "Error: Unknown position for ${axisname}: '${position}'." >> /dev/stderr
+	    exit 4
+	breaksw
+      endsw
+else 
+    echo "Error: Invalid axis '$axisname'!" >> /dev/stderr
+    exit 4
+endif
+
+
+# is there a parameter, and is the parameter a number
+if ( ! `kcas_isinteger $position` ) then
+    echo "Error: Invalid position '$position'" >> /dev/stderr
+    exit 4
+endif
+
+# is the parameter within range
+if ( ( $position < $minpos ) || ( $position > $maxpos ) ) then
+    echo "Error: Invlaid position: '$position'" >> /dev/stderr
+    exit 4
+endif
+
+# Verify server is running.
+if ( `kcwiCheckServer kcas` ) then 
+    echo "Info: KCAS running." >> /dev/null
+else 
+    echo "Error: KCAS not running." >> /dev/stderr
+    exit 5
+endif 
+
+# Check if axis is homed
+if ( `show -t -s kcas ${axisname}homed` ) then
+    echo "Info: $axisname is homed" >> /dev/null
+else 
+    echo "Error: $axisname not homed."
+    exit 6
+endif
+
+# Check mechanism isn't in an error state or moving
+# i.e., the status is "SUCCESS" or "OK"
+
+set mechstatus=`show -t -s kcas status`
+if ( $mechstatus == "OK" ) then
+    echo "Info: $axisname ready to move." >> /dev/null
+else 
+    echo "Error: $axisname not ready to move." >> /dev/stderr
+    exit 7
+endif 
+
+# get current position
+set curpos = `show -t -s kcas ${axisname}pos`
+set curposname = `show -t -s kcas ${axisname}name`
+set curenc = `show -t -s kcas ${axisname}enc`
+
+echo "Info: Current $axisname position: $curposname [$curpos], $curenc" >> /dev/null
+
+# set target, and make sure it is set successfully
+modify silent -s kcas ${axisname}targp=$position
+if ( $status ) then 
+    echo "Error: Cannot set target position." >> /dev/stderr
+    exit 8 
+else 
+    echo "Info: Axis ${axisname}targp set to $position" >> /dev/null
+endif
+
+onintr intlabel
+# waitfor -s kcas ${axisname}targp=$position >>& /dev/null
+gwaitfor -s kcas ${axisname}targp == $position >>& /dev/null
+# execute the move
+modify silent -s kcas ${axisname}move=1
+if ( $status ) then 
+    echo "Error executing move" >> /dev/stderr
+    exit 9
+else 
+    echo "Info: ${axisname}targp commanded to $position" >> /dev/null
+endif
+
+# wait for status to be ok
+gwaitfor -t $timeout -s kcas '$status == "OK"' >>& /dev/null
+if ( $status ) then
+    echo "Error: Move timed out." >> /dev/stderr
+    exit 10
+endif
+
+# Check position
+set newpos=`show -t -s kcas ${axisname}pos`
+
+
+set curposname = `show -t -s kcas ${axisname}name`
+
+
+echo "Info: Move of $axisname to position $position ($curposname) is complete." >> /dev/null
+
+exit 0
+
+
+intlabel:
+    onintr
+    echo "CTRL+C caught" >> /dev/stderr
+    set stat=`show -t -s kcas ${axis}status`
+    if ( $stat == "Moving" ) then
+	echo "Aborting move." >> /dev/stderr
+	modify -s kcas abort=1
+	if ( $status ) then
+	    echo "Error: Problem aborting move." > /dev/stderr
+	else 
+	    echo "Moves aborted. You will need to reset axes." >> /dev/stderr
+	endif
+    endif
+    exit 1

@@ -1,0 +1,211 @@
+#!/usr/bin/perl -w
+#+
+# datadirs -- print summary of recent data directories
+#
+# Purpose:
+#	Locate and print the names of directories which contain FITS
+#	images on the KCWI data disks, plus the number of blocks of 
+#	data stored therein.
+#
+# Usage:
+#	datadirs [-c] [account]
+# 
+# Arguments:
+#	account = name of the account for which to search 
+#		[default=current user, "all" gives all]
+# 
+# Switches:
+#	-c = show compression status of directories.  Directories which 
+#	     are not fully compressed are marked with an asterix
+# 
+# Output:
+#	List of data directories
+# 
+# Restrictions:
+#	None
+# 
+# Exit values:
+#	 0 = normal completion
+#	 1 = wrong number of arguments
+#
+# Example:
+#	1) Print out list of all data directories:
+#		polo{kcwi4}85: datadirs all
+#		    /dsk/iraid1/kics/2002aug17      290640 
+#		    /dsk/iraid1/kics/2002aug18	   1853010 
+#		      ...  
+#		    /dsk/iraid1/kcwi4/2002aug16 30691736 
+#		    /dsk/iraid1/kcwi4/2002aug15  2696594 
+#		
+# 	2) Print out list of all data directories for this account:
+#		polo{kcwi4}87: datadirs
+#		    /dsk/iraid1/kcwi4/2002aug16 30691736 
+#		    /dsk/iraid1/kcwi4/2002aug15  2696594
+#
+# 	3) Print out list of all occupied data directories for "kcwi3":
+#		polo{kcwi4}87: datadirs kcwi3
+#		    /dsk/iraid1/kcwi3/2002aug13 37433128 
+#		    /dsk/iraid1/kcwi3/2002aug14 24779988 
+#		    /dsk/iraid2/kcwi3/2002aug09  5903164 
+#		    /dsk/iraid2/kcwi3/2002aug10 24388340 
+#		    /dsk/iraid2/kcwi3/2002aug11 21018734 
+#		    /dsk/iraid2/kcwi3/2002aug12 35955228 
+#		    /dsk/iraid2/kcwi3/2002aug13       44 
+#		    /dsk/iraid2/kcwi3/2002aug14       44
+# 
+# 	4) Print out list of all data directories and show status
+#	of compressed files:
+#		[61] kcwi@polo> datadirs -c all
+#		/dsk/iraid2/kcwi7/2002oct01       5158306  53/ 53 FITS images compressed
+#		/dsk/iraid2/kcwi7/2002oct02       4084054  39/ 39 FITS images compressed
+#		/dsk/iraid2/kcwi3/2002oct03       7462189  95/ 96 FITS images compressed *
+#		/dsk/iraid2/kcwi3/2002oct04      15981853  37/140 FITS images compressed *
+#		/dsk/iraid2/kcwi3/2002oct05       7764075   0/ 78 FITS images compressed *
+#		/dsk/iraid1/kcwi3/2002oct06       4966609  85/ 86 FITS images compressed *
+#		/dsk/iraid2/kcwi8/2002oct07       7716172  99/ 99 FITS images compressed
+#		/dsk/iraid2/kcwi8/2002oct08       6975709  96/ 96 FITS images compressed
+#-
+# Modification history:
+#	2002-Aug-21	GDW	Original version
+#	2002-Oct-10	GDW	Converted to Perl and added date sorting
+#	2002-Oct-16	GDW	Added "-c" switch
+#	2002-Oct-18	GDW	Changes to support /sdata
+#	2003-May-22	GDW	Redirect cruft from "find" to /dev/null
+#	2004-Dec-10	GDW	Change globs to readdirs to avoid errors
+#				resulting from large directories
+#	2005-Sep-12	GDW	Build disk list automatically
+#	2014-Sep-03	JDN	Modified for KCWI
+#-----------------------------------------------------------------------
+
+use Getopt::Std;
+getopts("c");
+
+my( $i);
+my( $disk);
+my( @accounts) = $ENV{USER};
+my( @files, @gzfits, @fits);
+my( @good_dirs);
+my( @tail);
+my( $n_fits, $n_gzfits);
+
+if ( $#ARGV >= 0 ){
+  @accounts = @ARGV
+}
+
+# need this to avoid warnings about opt_c used only once...
+if( $opt_c){};
+
+# check for "all" option...
+if ( $accounts[0] eq "all" ){
+  @accounts = qw(kcwi kcwieng);
+  for ( $i=1 ; $i<=20 ; $i++ ){
+    push @accounts, "kcwi$i";
+  }
+}
+
+# build disk list...
+$_ = `/bin/df`;
+my( @buf) = split;
+die "No output from df" if $#buf < 1;
+my( @disks) = grep s/^(\/sdata....)/$1/, @buf;
+die "No data disks found" if $#disks < 0;
+@disks = sort @disks;
+
+# loop over accounts...
+foreach $account ( @accounts ){
+  foreach $disk ( @disks ){
+
+    # find directories which belong to this account...
+    $topdir = "$disk/$account";
+    next if not -e $topdir;
+    $_ = `/bin/find $topdir -name "2????????" -type d 2>/dev/null`;
+    @dirs = split;
+    next if $#dirs < 0;
+	    
+    # eliminate directories which have no fits files...
+    foreach $dir ( @dirs ){
+      opendir DATADIR, $dir;
+      @files = grep /\.fits/, readdir DATADIR;
+      closedir DATADIR;
+      if ( $#files > 0 ){
+	push @good_dirs, $dir;
+	$dir =~ m|^.*/(.*)$|;
+	push @tail, $1;
+      }
+    }
+  }
+}
+
+# sort directories by date...
+my( @keys) = (0..@good_dirs-1);
+my( @sortkeys) = sort { ymd2num($tail[$a]) <=> ymd2num($tail[$b]) } @keys;
+
+# print results...
+foreach $i (@sortkeys){
+  $dir = $good_dirs[$i];
+  $_ = `du -sk $dir`;
+  ($size, $dir) = split;
+  printf "%-30s %12s", $dir, $size;
+  if ( $opt_c ){
+
+    # read list of all FITS files...
+    opendir DATADIR, $dir;
+    @files = grep /\.fits/, readdir DATADIR;
+    closedir DATADIR;
+
+    # count gzipped-FITS files...
+    @gzfits = grep /\.fits.*gz$/, @files;
+    $n_gzfits = $#gzfits + 1;
+
+    # count FITS files...
+    @fits = grep /\.fits$/, @files;
+    $n_fits = $n_gzfits + $#fits + 1;
+
+    printf " %3d/%3d FITS images compressed", $n_gzfits, $n_fits;
+    if ( $n_gzfits != $n_fits ) { printf " *" }
+  }
+  printf "\n";
+}
+exit;
+
+#-----------------------------------------------------------------------
+sub ymd2num{
+#-----------------------------------------------------------------------
+# Purpose:
+#	Convert a string of form yyyyMMMdd to a numeric value that
+#	can be sorted.
+#-----------------------------------------------------------------------
+    use Time::Local;
+    my( $buf) = @_;
+    my( $seconds, $minutes, $hours) = (0,0,0);
+    my( $year, $month, $day);
+    my( $foo);
+
+    my( %monthval);
+    $monthval{'jan'} = 1;
+    $monthval{'feb'} = 2;
+    $monthval{'mar'} = 3;
+    $monthval{'apr'} = 4;
+    $monthval{'may'} = 5;
+    $monthval{'jun'} = 6;
+    $monthval{'jul'} = 7;
+    $monthval{'aug'} = 8;
+    $monthval{'sep'} = 9;
+    $monthval{'oct'} = 10;
+    $monthval{'nov'} = 11;
+    $monthval{'dec'} = 12;
+    
+    if ( $buf =~ /(\d\d\d\d)(\w\w\w)(\d\d)/ ) {
+	$year = $1;
+	$month = $2;
+	$day = $3;
+	if( defined($monthval{$month})){
+	  return timegm( $seconds, $minutes, $hours, $day, 
+			 $monthval{$month}-1, $year-1900)
+	} else {
+	  return 0
+	}
+      } else {
+	return 0
+      }
+  }

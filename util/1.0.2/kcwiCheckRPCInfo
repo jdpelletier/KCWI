@@ -1,0 +1,134 @@
+#!/bin/tcsh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#     kcwiCheckRPCInfo - checks if specified service is already registered 
+#
+# SYNOPSIS
+#     kcwiCheckRPCInfo service
+#
+# DESCRIPTION
+#     Checks to see if the specified service is registered with RPC.  It does
+#     this doing a 'rpcinfo' and looking for the correct PROGNUM.
+#
+#     If the service is registered, the username of the RPC entry is returned.
+#     If the service is not registered, nothing is returned.
+#
+# OPTIONS
+#     service
+#          rpc server name to check
+#
+# EXAMPLES
+#     kcwiCheckRPCInfo kprs
+#         Checks to see if the kprs server is registered with RPC.
+#
+# ENVIRONMENT VARIABLES
+#     Mxxx_PROGNUM's
+#
+# FILES
+#     none
+#
+# SERVERS & KEYWORDS
+#     none
+#
+# SCRIPTS CALLED
+#     help, syncheck, rpcinfo
+#
+# EXIT STATUS
+#     0 - normal exit, no error
+#     1 - script aborted by an interrupt
+#     2 - syncheck error
+#     3 - error parsing command line input
+#     other errors...
+#
+# SEE ALSO
+#     ???
+#-
+#
+# Modification History:
+# 20140214 - JDN: modified for KCWI
+# 20130103 - JEL: Replace uid switch with uid2username script
+# 20100902 - CAJ: Bug fix when checking RPC using grep
+# 20060608 - JLW: Initial version created, modified from osiris
+#
+
+# Boiler plate for "-h" support for command autohelp.
+
+if ("$1" == "-h") then
+    help $0 | more
+    exit $status
+endif
+
+# Boilerplate for syncheck.
+# Note that the boiler plate should be transparent for all usages,
+# but to make correct use of syncheck you will need to specify the
+# correct pattern.
+
+set noglob
+set servlist = "[kp1s,kp2s,kp3s,kt1s,kt2s,kbgs,kbvs,kbes,kbms,kros,kcas,kfcs,kcwi,kbds]"
+set CheckStatus = `syncheck -command $0 $* -pattern ${servlist}` 
+unset noglob
+
+if ("$CheckStatus" != "OK") then
+    help $0 | more
+    exit 2
+endif
+
+# End of help/syncheck boiler plate.
+
+# Set up to trap interrupts (Ctrl-C, etc.)
+onintr abort
+
+# Set default variable values
+set owner = ""
+
+# Get the command line argument
+set service = $1
+
+# if the service is kbds, run remotely on kcwitarg
+set remote = ""
+if ( $service  == "kbds" ) then
+    set remote = "ssh -l kcwirun kcwitarg "
+endif
+
+
+# Formulate the environment variable name that stores the PROGNUM
+set sNAME = `echo $service | gawk '{print toupper($0)}'`
+set varname = "${sNAME}_PROGNUM"
+
+# Check if the service is registered with RPC
+set num = `env | grep $varname | cut -f2 -d"="`
+#echo $num
+if ("${num}" != "") then 
+    set entry = `${remote}/usr/sbin/rpcinfo | grep $num`
+else
+    set entry = ""
+endif
+
+#echo $entry
+if ("${entry}" == "") then
+    # No entry found, so return "nothing"
+    echo $owner
+else
+    # Get the UID for the entry
+    set rpcuid = `echo $entry | awk '{print $6}'`
+    ####################################### TODO: change UID
+    # Convert the UID to a username (JDN: not working in Linux)
+    # set rpcname = `getent passwd $rpcuid | cut -d: -f1`
+    #set rpcname = `ps gauwx | grep $service | grep -v grep | head -1 | awk '{print $1}'`
+    set rpcname = `${remote}ps gauwx | grep $service | grep rpcKey_server | head -1 | awk '{print $1}'`
+
+    # Return the username of the rpcinfo entry
+    echo $rpcname
+endif
+
+goto done
+
+abort:
+# Block of code to handle interrupts.
+exit 1
+
+done:
+# is there anything that needs to go here?
+exit

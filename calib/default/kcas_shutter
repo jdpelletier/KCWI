@@ -1,0 +1,118 @@
+#!/bin/tcsh
+#
+# 160427
+# Matuszewski -- matmat@caltech.edu
+#
+# Wrapper for shutter modifies
+#
+# kcas_shutter.sh <lamp> <action>
+
+if ( ( $# < 1 ) || ( $# > 2) ) then
+    exit -1
+endif 
+
+# make sure KCAS is running
+if ( ! `kcwiCheckServer kcas` ) then
+    exit -2
+endif
+
+
+# capitalize
+set lamp=`echo $1 | tr "[a-z]" "[A-Z]"`
+
+
+
+# check validity
+switch ( $lamp )
+    case THAR:
+    case TH:
+    case T:
+    case 1:
+	set lampid=1
+    breaksw
+    case FEAR:
+    case FE:
+    case F:
+    case 0: 
+	set lampid=0
+    breaksw
+    default:
+	exit -3
+    breaksw
+endsw
+
+
+# capitalize
+if ( $# == 2 ) then 
+    set action=`echo $2 | tr "[a-z]" "[A-Z]"`
+else
+    set action="STATUS"
+endif
+
+# get lamp status or toggle lamp.
+
+
+switch ( $action )
+    case ON:
+    case OP:
+    case OPE:
+    case OPEN:
+    case 1:
+	set res=`modify -s kcas lamp${lampid}shstat=1`
+	sleep 1.5
+	if ( $status ) then
+	    exit -4
+	else 
+	    set res=`show -t -s kcas lamp${lampid}shstat`
+	    if ( $status ) then 
+		exit -4
+	    else 
+		echo $res
+	    endif 
+	endif
+    breaksw
+    case OFF:
+    case C:
+    case CL:
+    case CLO:
+    case CLOSE:
+    case CLOSED:
+    case 0: 
+	set res=`modify -s kcas lamp${lampid}shstat=0`
+	sleep 1.5
+	if ( $status ) then
+	    exit -5
+	else 
+	    set res=`show -t -s kcas lamp${lampid}shstat`
+	    if ( $status ) then 
+		exit -5
+	    else 
+		echo $res
+	    endif 
+	    sleep 0.5
+	endif
+    breaksw 
+    case STATUS:
+    case STAT:
+    case STA:
+    case ST:
+    case S:
+	set res=`show -t -s kcas lamp${lampid}shstat`
+	if ( $status ) then 
+	    exit -6
+	else 
+	    echo $res
+	endif 
+    breaksw 
+    default:
+	exit -7
+    breaksw
+endsw
+
+
+exit 0
+
+
+
+
+

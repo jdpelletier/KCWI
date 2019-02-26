@@ -1,0 +1,56 @@
+#!/bin/csh -f
+#+
+#+
+# MOSFIRE library of scripts
+#
+# NAME
+#       gotobase -- move the telescope to return to the base coordinates
+#
+# SYNOPSIS
+#	gotobase
+# 
+# DESCRIPTION
+#	Return to the position previously marked as "base" using the
+#	"markbase" script.
+#
+# ARGUMENTS
+# 
+# OPTIONS
+#
+# EXAMPLES
+#	1) return to the position marked as base:
+#		gotobase
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#       servers: dcs
+#        keywords: raoff, decoff
+#
+# SCRIPTS CALLED
+#
+#
+# EXIT STATUS
+#	0 = normal completion
+#	 1 = wrong number of arguments
+#
+# Modification history:
+#	2011apr27	MK	Original version
+#-------------------------------------------------------------
+
+# check args...
+if (${#argv} != 0) then
+  echo "Usage: gotobase"
+  exit 1
+endif
+
+# set current to base...
+modify -s dcs raoff=0 decoff=0 rel2base=true
+
+
+
+
+
+

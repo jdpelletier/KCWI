@@ -1,0 +1,256 @@
+#!/bin/csh -f
+#+
+#KCWI library of scripts
+#
+#NAME
+#     kcwiScriptMsg - a general purpose utility for reporting script
+#          messages to STDOUT, OGS, or a text log file.
+#
+#SYNOPSIS
+#     kcwiScriptMsg [-t #] [-T] [-f filename] [-S] [-E] [-W] [-m] "message"
+#
+#DESCRIPTION
+#     This script is designed to provide a uniform way of reporting a
+#     variety of script messages (status, warnings, or errors) to STDOUT,
+#     the KCWI global server, and text log files.  Originally designed
+#     mostly for use with kcwiTakeDataset and the exposure-control GUI
+#     This script may be useful in other contexts as well.
+#
+#OPTIONS
+#     -t #
+#          ID number to attach to all script generated errors, warnings, and
+#          questions that are passed to the OGS.  The ID number is separated
+#          from the rest of the message with a ";".
+#
+#     -T
+#          general message - report to STDOUT with an "echo" command
+#
+#     -f filename - log the message to "filename" .  Note:  filename must
+# 	   be the full pathname for the file.  Currently there is no error
+#	   checking to make sure the file exists.  The file is created if it
+#	   does not exist.  If the file is not writeable, this script prints
+#	   a "Permission denied" error to stderr.
+#     -S
+#          status message - report to OGS "setstatus" keyword
+#
+#     -E
+#          error message - report to OGS "scripterror" keyword
+#          keyword set only if ID number is non-zero
+#
+#     -W
+#          warning message - report to OGS "scriptwarn" keyword
+#          keyword set only if ID number is non-zero
+#
+#     -A
+#          ask message - report to OGS "scriptask" keyword
+#          keyword set only if ID number is non-zero
+#
+#     -m
+#          simulate calls to RPC servers.  during simulated calls, the 
+#          command is echoed (instead of being executed).
+#
+#     "message"
+#          the text message to be reported.  the text may not begin with a
+#          dash "-".
+#
+#EXAMPLES
+#     kcwiScriptMsg -t 12345 -T -E "Bad things are happening"
+#          The message "Bad things are happening" will be echoed to STDOUT
+#          and sent to the MGS "scripterror" keyword with the ID number
+#          12345 attached.
+#
+#ENVIRONMENT VARIABLES
+#     none
+#
+#FILES
+#     none
+#
+#SERVERS & KEYWORDS
+#     service = kcwi
+#          keywords: setstatus, scripterror, scriptwarn, scriptask
+#
+#SCRIPTS CALLED
+#     help, syncheck
+#
+#EXIT STATUS
+# update this...
+#     0 - normal exit, no error
+#     1 - script aborted by an interrupt
+#     2 - syncheck error
+#     3 - error parsing command line input
+#     other errors...
+#
+#SEE ALSO
+#     ???
+#-
+#
+# Modification History:
+# 20041214 - MB: Initial version created
+# 20041228 - MB: Added -A flag
+# 20050923 - MB: Only set scripterror, scriptwarn, or scriptask if ID number
+#                is non-zero.
+# 20051122 - MB: Set keywords to " " before setting the real value, so that
+#                will for sure catch the new value.
+# 20071218 - CRO:  Modified for MOSFIRE
+# 20140312 - MK: Added write permission so that all can write to the file.
+# 20141210 - JDN:  Modified for KCWI
+
+# Boiler plate for "-h" support for command autohelp.
+
+if ("$1" == "-h") then
+    help $0 | more
+    exit $status
+endif
+
+# Boilerplate for syncheck.
+# Note that the boiler plate should be transparent for all usages,
+# but to make correct use of syncheck you will need to specify the
+# correct pattern.
+
+# More advanced error checking on optional flags below
+
+#set noglob
+#set CheckStatus = `syncheck -command $0 $* -pattern text` 
+#unset noglob
+
+#if ("$CheckStatus" != "OK") then
+#    help $0
+#    exit 2
+#endif
+
+# End of help/syncheck boiler plate.
+
+# Set up to trap control-C
+onintr ctrlc
+
+# Set default variable values
+set fcmd = $0
+set cmd = ${fcmd:t}
+set cmdpre = ""
+set cmdsuf = ""
+set idnum = 0
+
+# Check for flags
+set noglob
+while ($#argv != 0)
+##echo "${cmd}: Checking ${1}..."
+    switch ("$1")
+	case -t:
+	    set CheckStatus = `syncheck -command $1 $2 -pattern int`
+	    if ("$CheckStatus" == "OK") then
+		set idnum = $2
+		shift
+	    else
+		echo "${cmd}: Invalid script ID number specified <${2}> - using ${idnum}."
+	    endif
+	    unset Checkstatus
+	    breaksw
+
+	case -T:
+	    set echomsg
+	    breaksw
+
+	case -S:
+	    set statmsg
+	    breaksw
+
+	case -E:
+	    set errmsg
+	    breaksw
+
+	case -f:
+	    set filemsg
+	    set filename = $2
+	    shift
+	    breaksw
+
+	case -W:
+	    set warnmsg
+	    breaksw
+
+	case -A:
+	    set askmsg
+	    breaksw
+
+	case -m:
+	    set sim
+	    set cmdpre = "echo ${cmd}: sim:"
+	    set cmdsuf = "-m"
+	    breaksw
+
+	case -*:
+    	    echo "${cmd}: Invalid command line flag $1 specified."
+	    echo "${cmd}: Usage: $0 [-t #] [-T] [-S] [-E] [-W] [-A] [-m] "'"message"'
+	    # set the error code for an error with command line input
+	    exit 3
+	    breaksw
+
+	default:	    
+	    # Assume that anything else is the message
+	    set msg = "${argv[1-]}"
+	    # Exit the while loop
+	    break
+	    breaksw
+    endsw
+    shift
+end
+unset noglob
+
+# Write the message to STDOUT, if enabled
+if ($?echomsg) then
+    echo "$msg"
+endif
+
+#Write the message to the given file name
+if ($?filemsg) then
+   if ( -e $filename ) then
+      echo "$msg" >> $filename
+   else
+      echo "$msg" >> $filename
+      #set write permissions
+      chmod 666 $filename
+   endif
+endif
+
+# Write the message to "setstatus", if enabled
+if ($?statmsg) then
+    $cmdpre modify -s kcwi silent setstatus="${msg}"
+endif
+
+# We set the following keywords if ID number is non-zero.  If non-zero, 
+# that probably means a gui is paying attention to these keywords
+# at the moment.
+
+# Write the message to "scripterror", if enabled
+if ($?errmsg && ($idnum != 0)) then
+    # Set the keyword to blank first, so gui won't miss the message
+    $cmdpre modify -s kcwi silent scripterror=" "
+    # Now set the real message
+    $cmdpre modify -s kcwi silent scripterror="${idnum};${msg}"
+endif
+
+# Write the message to "scriptwarn", if enabled
+if ($?warnmsg && ($idnum != 0)) then
+    # Set the keyword to blank first, so gui won't miss the message
+    $cmdpre modify -s kcwi silent scriptwarn=" "
+    # Now set the real message
+    $cmdpre modify -s kcwi silent scriptwarn="${idnum};${msg}"
+endif
+
+# Write the message to "scriptask", if enabled
+if ($?askmsg && ($idnum != 0)) then
+    # Set the keyword to blank first, so gui won't miss the message
+    $cmdpre modify -s kcwi silent scriptask=" "
+    # Now set the real message
+    $cmdpre modify -s kcwi silent scriptask="${idnum};${msg}"
+endif
+
+goto done
+
+ctrlc:
+# Block of code to handle interrupts.
+exit 1
+
+done:
+# is there anything that needs to go here?
+exit

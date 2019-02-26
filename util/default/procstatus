@@ -1,0 +1,75 @@
+#!/bin/csh -f
+#+
+# PROCSTATUS - KCWI library of scripts
+#
+# NAME
+#     procstatus - gives the status of a given process
+#
+# DESCRIPTION
+#     procstatus is a wrapper for the ps command
+#
+# OPTIONS
+#     process
+#
+#     -H runhost, defaults to localhost
+#
+#     -U runuser, run as a specific user
+#
+# EXAMPLES
+#     procstatus kbds -H kcwitarg
+#     will give status for kbds process (blue detector server)
+#
+#-
+#
+# Modification History:
+# 20101118 - CAJ: created from scratch, OSIRIS reference script does not exist
+# 20141211 - JDN: modified for KCWI
+#
+
+# Boiler plate for "-h" support for command autohelp.
+
+if ("$1" == "-h") then
+    help $0
+    exit $status
+endif
+
+# Check that one required argument (process) is present
+if ( $#argv < 1 ) then
+    help $0 | more
+    exit 3
+endif
+
+# Get the required arguments passed in
+set process=$1
+shift
+set runhost=`hostname`
+set runuser=`whoami`
+
+#echo argv = $#argv
+
+while ($#argv != 0)
+    switch ($1)
+	case -H:
+	    set runhost=$2
+	    shift
+	breaksw
+
+	case -U:
+	    set runuser=$2
+	    shift
+	breaksw
+    endsw
+    shift
+end
+
+if ($runhost == "localhost") then
+    set runhost = `hostname`
+endif
+
+# Check to to see what host we are on, and check the process
+
+if ($runhost != `hostname`) then
+  ssh -qt $runuser@$runhost ps -ewwf | egrep "$process|UID" | grep -v grep | grep -v status | grep -v java
+else
+  ps -ef | egrep "$process|UID" | grep -v grep | grep -v status
+endif

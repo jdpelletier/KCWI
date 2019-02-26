@@ -1,0 +1,40 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#        takeGuiderImage
+# SYNOPSIS
+#        takeGuiderImge
+# DESCRIPTION
+#	this is a wrapper to take an offset guider image using the 
+#       offset guide camera which should already be exposing.
+#
+# ARGUMENTS
+#
+# OPTIONS
+#
+# EXAMPLES
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#
+# SCRIPTS CALLED
+#
+# EXIT STATUS
+#
+# SEE ALSO
+#  k2obs on k2server ~k1obs/magiq/mosfire/takeGuiderImage
+#  SAT widget
+#
+# Modification History:
+# 2012-mar-09 - MK: Original Version
+#
+#-----------------------------------------------------------------------
+                                                                
+ssh k2obs@k2server exec ~k2obs/magiq/kcwi/takeGuiderImage
+
+

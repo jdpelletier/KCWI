@@ -1,0 +1,19 @@
+#!/bin/csh -f
+
+set server=kbes
+alias ss "show -s $server -terse"
+
+foreach id (ca gt ft gp fp gr)
+    echo --------------------------
+    echo `./kbesGetNameFromPrefix $id`
+    echo "pos     ${id}enc#      ${id}name#"
+    echo --------------------------
+    set ii=0
+    set numPos=`ss ${id}numpos`
+    while ($ii < $numPos) 
+	set posname=`ss ${id}name${ii}`
+	set enc=`ss ${id}enc${ii}`
+	echo " $ii      $enc      $posname"
+	@ ii++
+    end
+end

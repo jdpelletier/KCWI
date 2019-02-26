@@ -1,0 +1,58 @@
+#!/bin/csh -f
+#+
+# more_wrapper -- execute script, more, and exit
+#
+# Purpose:
+#	Execute the specified script and pipe results to a pager such as
+#	"less" or "more".
+#
+# Usage:
+#	more_wrapper <commands>
+# 
+# Arguments:
+#	<commands> = shell script to be run in the window
+# 
+# Output:
+#	to stdout of new xterm window
+# 
+# Restrictions:
+#	None
+# 
+# Exit values:
+#	 0 = normal completion
+#	 1 = wrong number of arguments
+#
+# Example:
+#	1) Remotely execute the "ctx" command:
+#		xrsh punaluu xterm -e more_wrapper ctx
+#
+#-
+# Modification history:
+#	2001-Mar-26	GDW	Original version
+#	2006-Aug-22	GDW	Modified to check $PAGER
+#-----------------------------------------------------------------------
+
+# verify args...
+if ( $#argv < 1 ) then
+  set buf = $0
+  set cmd = $buf:t
+  echo "Usage: $cmd <commands>"
+  more 3
+  exit 1
+endif
+
+# determine which pager to employ...
+if ( $?PAGER ) then
+    set pager = $PAGER
+else
+    which less >& /dev/null
+    if ( $status == 0 ) then
+	set pager = less
+    else
+	set pager = more
+    endif
+endif
+
+# run the commands...
+$* | $pager
+exit

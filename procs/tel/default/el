@@ -1,0 +1,61 @@
+#!/bin/csh -f
+#+
+#KCWI library of scripts
+#
+#NAME
+#       el -- move the telescope x arcsec in elevation
+#
+# SYNOPSIS
+#	el x
+#
+# DESCRIPTION
+#	Move the telescope the given number of arcseconds in the
+#	elevation direction.
+# 
+# ARGUMENTS:
+#	x = distance to move [arcsec]
+#	- "x" must be a real value
+# 
+# OPTIONS
+#       none
+#
+# EXAMPLES
+#	1) Move the telescope 10 arcseconds in the positive elevation direction:
+#		el 10
+#
+#	2) Move the telescope 10 arcseconds in the negative elevation direction:
+#		el -10
+#
+# ENVIRONMENT VARIABLES
+#       none
+#
+# FILES
+#     none
+#
+# SERVERS & KEYWORDS
+#     service = dcs
+#          keywords: eloff, rel2curr, axestat
+#
+# EXIT STATUS
+#	 0 = normal completion
+#	 1 = wrong number of arguments
+#
+#-
+# Modification history:
+#	2011apr11	MK	Original version
+#-----------------------------------------------------------------------
+# check args...
+if (${#argv} != 1) then
+  echo "Usage: el x"
+  exit 1
+endif
+
+# verify floating-point values...
+is_float $* > /dev/null
+if ( $status ) then
+  echo "ERROR -- Argument must be valid floating-point numbers"
+  exit 2
+endif
+
+# do move...
+azel 0.0 $1

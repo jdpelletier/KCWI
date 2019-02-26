@@ -1,0 +1,175 @@
+#!/bin/csh 
+#
+# +
+# 161121
+# Matuszewski -- matmat@caltech.edu 
+# 
+# Focus the calibration system 300um pinhole on the focal plane camera
+# 
+# The script moves the calibration system CALM axis (periscope mirror)
+# which changes the optical path length to the slicer.
+# It uses a python module to measure the FWHM of the spot (including a
+# rotation to match the astigmatism axes)
+# The result is then fitted with a 2nd degree polynomial and the
+# minimum is located. The KCAS keyword CALMZERO is then set to that
+# value. CALMOFFSET is set to 0.
+# 
+# -
+
+
+if ( `show -t -s kcas ifuname` !~ "FPCam" ) then
+    echo "IFU Not at FPCam. Moving to fpcam. Please wait..." >>& /dev/stderr
+    slicer fpcam
+endif
+
+
+# open camera
+set camclosed=`show -t -s kfcs closed`
+if ($camclosed) then
+    fpcamPower on
+    if ($status) then
+	echo "ERROR OPENING CAMERA" >>& /dev/stderr
+	exit  1
+    endif
+endif
+
+set exptime=1.4
+set foci=`seq -4000 1000 5000`
+
+set minzero=-2000
+set maxzero=2000
+
+
+
+# save preliminary keyword values and replace with new ones
+# perhaps we can capture CTRL-C later and replace these values
+# if a user quits the focus sequence ... for now:
+echo "If you interrupt the focus, you will need to restore FPC settings manually"
+set fpckeys=(counter binning exptime outfile outdir )
+set fname=foc`date +%y%m%d-%H%M_`
+set fpckeyvals=(0 2 $exptime $fname /tmp )
+
+set startkeyvals=-10
+@ ctr=1
+foreach fpckey ( $fpckeys )
+    # Save initial value 
+    set keyval=`show -t -s kfcs $fpckey`
+    if ( $startkeyvals[1] == "-10" ) then
+	set startkeyvals=$keyval
+    else
+	set startkeyvals=( $startkeyvals "$keyval" )
+    endif
+    sleep 0.5
+    modify -s kfcs $fpckey=$fpckeyvals[$ctr]
+    sleep 0.5
+    @ ctr++
+end
+
+echo "Saved values: $startkeyvals"
+
+
+# reset the cal keywords
+set kcaskeywords=(calxoffset calxzero calyoffset calyzero calmoffset calmzero)
+foreach kcaskeyword ( $kcaskeywords )
+    modify -s kcas $kcaskeyword=0
+    sleep 0.5
+end
+
+
+# turn off continuum and close arc shutters
+kcas_shutter fear close
+kcas_shutter thar close
+kcas_lamp cont off
+
+# select the pin300 target
+kcas_object pin300
+
+# set up the fwhm array
+set fwhm=-10
+set xfwhm=-10
+set yfwhm=-10
+set encs=-10
+
+# take a dark exposure 
+goifpc 
+set darkfile=`show -t -s kfcs lastfile`
+
+
+# focus sequence
+kcas_lamp cont on
+foreach focus ( $foci ) 
+    modify -s kcas calmoffset=$focus
+    sleep 0.2
+    modify -s kcas pollhw=1
+    sleep 0.2
+    kcas_movelin calm mirror
+    sleep 0.2
+    goifpc 
+    set brightfile=`show -t -s kfcs lastfile`
+    set resfwhm=`kfcs_fwhm $brightfile $darkfile`
+    set calmenc=`show -t -s kcas calmenc`
+    if ( $fwhm[1] == '-10' ) then
+	set xfwhm=$resfwhm[1]
+	set yfwhm=$resfwhm[2]
+	set fwhm=$resfwhm[3]
+	set encs=$calmenc
+    else 
+	set xfwhm=($xfwhm $resfwhm[1])
+	set yfwhm=($yfwhm $resfwhm[2])
+	set fwhm=($fwhm $resfwhm[3])
+	set encs=($encs $calmenc)
+    endif
+    echo $focus $calmenc $resfwhm
+end
+
+
+set outfile=/tmp/${fname}tab.log
+@ ctr=0
+set steps=$#foci
+echo "# CALMOFFSET CALMENC FWHMA FWHMB FWHM" >! $outfile
+echo "# `date`" >> $outfile
+while ( $ctr <= $steps )
+    echo $foci[$ctr] $encs[$ctr] $xfwhm[$ctr] $yfwhm[$ctr] $fwhm[$ctr]
+    echo $foci[$ctr] $encs[$ctr] $xfwhm[$ctr] $yfwhm[$ctr] $fwhm[$ctr] >> $outfile
+    @ ctr++
+end
+
+set temp=`kcas_fit_focus $outfile | grep BESTFOC`
+set calmzero=$temp[2]
+
+if ( ( `echo "$calmzero > $minzero" | bc -l` ) && (`echo "$calmzero < $maxzero" | bc -l`) ) then
+    modify -s kcas calmzero=$calmzero
+    sleep 0.5
+else 
+    echo "Could not determine a valid focus." >>& /dev/stderr
+    exit 1
+endif
+
+
+
+modify -s kcas calmoffset=0
+sleep 0.5
+modify -s kcas pollhw=1
+sleep 0.5
+kcas_movelin calm mirror
+
+# take a final image
+goifpc
+# turn off the lamp
+kcas_lamp cont off
+
+# sleep 3
+# set binning
+echo "Restoring fpc values"
+# restore the values!
+@ ctr=1
+foreach fpckey ( $fpckeys )
+    # Save initial value 
+    modify -s kfcs $fpckey=$startkeyvals[$ctr]
+    sleep 0.5
+    @ ctr++
+end
+sleep 1
+# turn off camera
+# maybe not for now.
+#  fpcamPower off

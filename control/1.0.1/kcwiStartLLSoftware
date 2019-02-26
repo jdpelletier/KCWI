@@ -1,0 +1,22 @@
+#!/usr/bin/csh -f
+#
+# kcwiStartLLSoftware -- start the servers and the keygrabber
+#
+
+kcwi start servers
+echo "Waiting for servers to start up"
+sleepdots 30
+# this is no longer necessary as of 2018 feb 23, when we restored the second lakeshore
+#echo "Restarting kt2s in simulation mode"
+#kcwi stop kt2s
+#kcwi start kt2s -S
+#sleepdots 10
+kcwi start kcwi
+echo "Waiting for kcwi global server to start up"
+sleepdots 30
+echo "Starting keygrabber"
+kcwi start keygrabber
+#echo "Starting dcs rotator interface"
+#kcwi start watchrot
+
+

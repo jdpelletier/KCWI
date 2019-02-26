@@ -1,0 +1,60 @@
+#!/usr/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#       math -- evaluate simple binary mathematical expressions
+#
+# SYNOPSIS
+#	math arg1 op arg2
+#
+# DESCRIPTION
+#	Parse the input expression using the Unix "bc" operation and
+#	print the resulting value on the standard output
+#   Output:
+#	Resultant value of the expression
+# 
+#   Restrictions:
+#	Expressions using the special characters "*" or "()" must be
+#	enclosed within double quotes
+# 
+# Arguments:
+#	arg1 = real value
+#	op   = operator ( +,-,*,/) 
+#	arg2 = real value
+# 
+# OPTIONS
+#
+# EXAMPLES:
+#	math 2 + 3          addition
+#	math "2 * 3"        multiplication (note the quotes when "*" is used)
+#	math 2 \* 3         another way of doing multiplication without quotes.
+#	math 2 x 3          is also multiplication (no quotes needed)
+#	math 4 - 5          subtraction
+#	math 4 / 5          division.
+#
+#	For use within scripts, with passed arguments:
+#
+#	mxy `math $x x $offset` `math $y x $offset`
+#
+#	(Note that the variable substitution for $x happens before the "x"
+#	representing multiplication gets translated into "*".)
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#     
+#
+# SCRIPTS CALLED
+#
+#
+# EXIT STATUS:
+#
+#-
+# Modification history:
+#	Date unknown	???	Original version
+#	2012-Mar-12	MK	Modified for use with MOSFIRE
+#-------------------------------------------------------------------
+echo "$*" | tr "x" "*" | bc -l

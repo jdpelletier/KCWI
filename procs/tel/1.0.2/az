@@ -1,0 +1,62 @@
+#!/bin/csh -f
+#+
+#KCWI library of scripts
+#
+#NAME
+#       az -- move the telescope x arcsec in azimuth
+#
+# SYNOPSIS
+#	az x
+#
+# DESCRIPTION
+#	Move the telescope the given number of arcseconds in the
+#	azimuth direction.
+# 
+# ARGUMENTS
+#	x = distance to move [arcsec]
+#	- "x" must be a real value
+# 
+# OPTIONS
+#       none
+#
+# EXAMPLES
+#	1) Move the telescope 10 arcseconds in the positive azimuth direction:
+#		az 10
+#
+#	2) Move the telescope 10 arcseconds in the negative azimuth direction:
+#		az -10
+#
+# ENVIRONMENT VARIABLES
+#       none 
+#
+# FILES
+#     none
+#
+# SERVERS & KEYWORDS
+#     service = dcs
+#          keywords: azoff, rel2curr, axestat
+#
+# EXIT STATUS
+#	 0 = normal completion
+#	 1 = wrong number of arguments
+#
+#-
+# Modification history:
+#	2011apr11	MK	Original version
+#-----------------------------------------------------------------------
+
+# check args...
+if (${#argv} != 1) then
+  echo "Usage: az x"
+  exit 1
+endif
+
+# verify floating-point values...
+is_float $* > /dev/null
+if ( $status ) then
+  echo "ERROR -- Argument must be valid floating-point numbers"
+  exit 2
+endif
+
+# do move...
+azel $1 0.0

@@ -1,0 +1,115 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#      # gmov -- move an object to a given position on the KCWI guider
+#
+# SYNOPSIS
+#	gmov [-n] x1 y1 x2 y2
+# 
+# DESCRIPTION
+#	Given the starting pixel coordinates of an object on a
+#	KCWI guider image, and destination coordinates, 
+#	compute and apply the required telescope move to reposition
+#	the object as desired.
+# 
+# ARGUMENTS
+#	-n = no move, only print the required shift
+#	x1 = starting column location of object [pixels]
+#	y1 = starting row location of object [pixels]
+#	x2 = ending column location of object [pixels]
+#	y2 = ending row location of object [pixels]
+# 
+# OPTIONS
+#
+# EXAMPLES
+#	1) Move a target at guider pixel (100,200) to pixel (300,400):
+#		gmov 100 200 300 400
+#
+#	2) Display the telescope move required to shift a target at
+#	pixel (100,200) to the pixel (300,400) without moving the telecope:
+#		gmov -n 100 200 300 400
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#
+# SCRIPTS CALLED
+#
+#      gxy
+#
+# EXIT STATUS
+#	0 = normal completion
+#	1 = wrong number of arguments
+#	2 = arguments not valid floating-point numbers
+#
+# Modification history:
+#	2011apr27	MK	Original version
+#-------------------------------------------------------------
+
+set cmd = `basename $0`
+set usage = "$cmd [-n] x1 y1 x2 y2"
+set string = "Moving"
+set move = 1
+
+# parse flags...
+while ( $#argv > 0 )
+
+  # check for -nomoves flag...
+  if ( "$1" =~ \-n* ) then
+    set string = "Required shift is"
+    set move = 0
+    shift
+    continue
+  endif
+
+  # exit flag check if no flags remain...
+  break
+
+end
+
+# verify args...
+if (${#argv} != 4) then  
+  printf "$usage\n\a"
+  exit 1
+endif
+
+# verify floating-point values...
+is_float $* > /dev/null
+if ( $status ) then
+  echo "ERROR: Arguments must be valid floating-point numbers"
+  exit 2
+endif
+
+# parse args...
+if ( $#argv >= 1 ) then
+    set x1 = $1
+    shift
+endif
+if ( $#argv >= 1 ) then
+    set y1 = $1
+    shift
+endif
+if ( $#argv >= 1 ) then
+    set x2 = $1
+    shift
+endif
+if ( $#argv >= 1 ) then
+    set y2 = $1
+    shift
+endif
+
+# set scale...
+set gscale = 0.184
+
+# apply shift...
+set dx = `calc "$gscale * ($x1 - $x2)"`
+set dy = `calc "$gscale * ($y2 - $y1)"`
+echo "$string $dx arcsec in x and $dy arcsec in y"
+if ( $move ) then
+    gxy $dx $dy
+endif
+

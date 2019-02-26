@@ -1,0 +1,5 @@
+cal_mirror = Sky
+image_slicer = FPCam
+polarizer = Sky
+binningfpc = 4
+

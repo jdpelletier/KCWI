@@ -1,0 +1,109 @@
+#!/bin/csh -f
+#+
+#MOSFIRE library of scripts
+#
+#NAME
+#     kcwiSetupRotatorTracking
+#
+#SYNOPSIS
+#     kcwiSetupRotatorTracking 
+#
+#DESCRIPTION
+#     Configures k-mirror mechanism server to enable tracking
+#
+#OPTIONS
+#
+#EXAMPLES
+#     kcwiSetupRotatorTracking
+#
+#ENVIRONMENT VARIABLES
+#
+#
+#FILES
+#
+#
+#SERVERS & KEYWORDS
+#     service = kros
+#          keywords: rotsetup, rotservo, rotfrctrk, rotoffset
+#
+#SCRIPTS CALLED
+##     help, syncheck
+#
+#EXIT STATUS
+#     0 - normal exit, no error
+#     1 - script aborted by an interrupt
+#     2 - syncheck error
+#     3 - error parsing command line input
+#
+# NOTES
+#
+#SEE ALSO
+#    
+#-
+#
+# Modification History:
+# 20110316 - JLW: Initial version created
+# 2012dec03  MK/AH If rotservo is 1 then don't restart it
+#
+
+# Boiler plate for "-h" support for command autohelp.
+
+if ("$1" == "-h") then
+    help $0 | more
+    exit $status
+endif
+
+# Boilerplate for syncheck.
+# Note that the boiler plate should be transparent for all usages,
+# but to make correct use of syncheck you will need to specify the
+# correct pattern.
+
+set noglob
+set CheckStatus = `syncheck -command $0 $* -pattern` 
+unset noglob
+
+if ("$CheckStatus" != "OK") then
+    help $0 | more
+    exit 2
+endif
+
+# End of help/syncheck boiler plate.
+
+# Set up to trap interrupts (Ctrl-C, etc.)
+onintr abort
+
+set service=kros
+# offset between rotator and 
+# rotpdsts to align them
+# for mosfire, 
+# value is 177.962 - rotbase + 27.6
+
+set alignOffset=0
+
+alias m "modify -s ${service}"
+
+if (`kcwiCheckServer $service` == 1) then
+    echo "${service}:"
+    m lockall=0
+    set servoflag = `show -s kros -terse rotservo`
+    if ( $servoflag == 0 ) then
+      m rotsetup=1
+      m rotservo=1
+    endif
+    m rotoffset=$alignOffset
+    sleep 3
+    m rotfrctrk=1
+else 
+    echo "ERROR: ${service} is not running."
+    set unavail = "${unavail}${service} "	
+endif
+
+goto done
+
+abort:
+# Block of code to handle interrupts.
+exit 1
+
+done:
+# is there anything that needs to go here?
+exit

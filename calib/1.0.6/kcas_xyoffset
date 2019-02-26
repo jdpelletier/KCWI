@@ -1,0 +1,53 @@
+#!/bin/csh
+#
+# 161025
+# matmat
+# script to change x-y offset and move the stage. 
+
+if ( $#argv != 2 ) then 
+   echo "${0}: Insufficient parameters."
+   echo "$0 <xoffset> <yoffset>"
+   exit 1
+endif
+
+set xoffset=$1
+set yoffset=$2
+
+if ( ! `kcwiCheckServer kcas`) then 
+    echo "${0}: KCAS server not started."
+    exit 1
+endif
+
+set calxhomed=`show -t -s kcas calxhomed`
+set calyhomed=`show -t -s kcas calyhomed`
+
+if ( ( $calxhomed != 1 ) || ( $calyhomed != 1 )) then 
+   echo "${0}: CALX/Y Not homed."
+   exit 1
+endif
+
+set calxname=`show -t -s kcas calxname`
+
+if ( $calxname == 'unknown' ) then
+   set previous=0
+else 
+   set previous=1
+   set calxprev=$calxname
+endif
+
+# Set up the configuration
+modify -s kcas calxoffset=$xoffset calyoffset=$yoffset pollhw=1 >>& /dev/null
+if ($status) then
+   echo "${0}: Could not set offsets."
+   exit 2
+endif
+
+
+if ( $previous ) then
+   kcas_object $calxname >>& /dev/null
+   if ($status) then
+      echo "${0}: Could not execute move."
+      exit 3
+   endif 
+endif
+

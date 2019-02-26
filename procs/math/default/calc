@@ -1,0 +1,94 @@
+#!/usr/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#       calc -- evaluate an arbitrary arithmetic statement using GAWK
+#
+# SYNOPSIS
+#	calc [expr]
+#
+# DESCRIPTION
+#	Serve as a general-purpose calculator, evaluating arithmetic
+#	statements of arbitrary complexity.  In addition to the normal
+#	functions provided by AWK, this script offers the trigonometric
+#	functions available with GAWK.
+# 
+#    Output:
+#	resultant value of the operation
+# 
+#    Restrictions:
+#	Expressions involving parentheses "()" and/or the 
+#	multiplication operator "*" must be enclosed in double quotes
+#	to prevent conflicts with shell expansion.
+# 
+#    Note:
+#	In addition to all of the usual GAWK functions, the following
+#	functions are available for user convenience:
+#		abs(x)	  = absolute value of x
+#		nint(x)   = nearest integer
+#		log10(x)  = common logarithm of x
+#
+#		sind(x)	  = sine of x (x in degrees)
+#		cosd(x)	  = cosine of x (x in degrees)
+#
+#		asin(x)   = inverse sine of x (result in radians)
+#		acos(x)   = inverse cosine of x (result in radians)
+#		atan(x)   = inverse tangent of x (result in radians)
+#		asind(x)  = inverse sine of x (result in degrees)
+#		acosd(x)  = inverse cosine of x (result in degrees)
+#		atan2d(x,y) = inverse tangent of x,y (result in degrees)
+#
+# ARGUMENTS:
+#	expr = an arithmetic expression
+# 
+# OPTIONS
+#
+# EXAMPLES:
+#	calc 1+2                # returns "3"
+#	calc 1 + 2 + 3          # returns "6"
+#	calc "(1+2+3)*4/6"      # returns "4"
+#	calc "(1+2+3)*4/6."     # returns "3.93443"
+#	calc "int(1.4)"         # returns "1"
+#	calc "2*pi"			# returns "6.28319"
+#	set a = 1000
+#	calc $a+1			# returns "1001"
+#	calc "sind(45)"		# take sin of 45deg; returns "0.707107"
+#
+# EXIT STATUS:
+#	0 = normal completion
+#	1 = no arguments provided
+#	2 = arithmetic error
+#
+#-
+# Modification history:
+#	2000-Jan-01	GDW	Original version
+#	2012-Mar-12	MK	Modified for use with MOSFIRE
+#-----------------------------------------------------------------------
+
+set noglob
+
+# verify args...
+if ( $#argv == 0 ) then
+  echo "Usage: calc <expr>"
+  exit 1
+endif
+
+# replace "x" with multiplication sign (*)...
+set foo = `echo $* | sed s/x/\*/g`
+
+# evaluate expression...
+echo | gawk "BEGIN{ pi=atan2(0,-1)}{print $foo} \
+function cosd(x, pi)	{ pi=atan2(0,-1) ; return cos(x*pi/180.)} \
+function sind(x, pi)	{ pi=atan2(0,-1) ; return sin(x*pi/180.)} \
+function log10(x)	{ return log(x)/log(10) } \
+function abs(x)		{ if(x>=0){ return x } else { return -x }} \
+function asin(x)	{ return atan2(x,(1.-x^2)^0.5) } \
+function acos(x)	{ return atan2((1.-x^2)^0.5,x) } \
+function atan(x)	{ return atan2(x,1) } \
+function asind(x, pi,rad){ pi=atan2(0,-1) ; rad=atan2(x,(1.-x^2)^0.5) ; return rad*180./pi} \
+function acosd(x, pi,rad){ pi=atan2(0,-1) ; rad=atan2((1.-x^2)^0.5,x) ; return rad*180./pi} \
+function atan2d(x,y, pi,rad){ pi=atan2(0,-1) ; rad=atan2(x,y) ; return rad*180./pi} \
+function nint(x, y,sign){ if (x==0) {return 0} ; y=abs(x) ; sign=x/y ; return sign*int(y+0.5) }"
+
+exit $status

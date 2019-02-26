@@ -1,0 +1,96 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#     kcwiStartNight - prepares KCWI for focusing and beginning of night
+#
+# SYNOPSIS
+#       kcwiStartNight
+#
+# DESCRIPTION
+#       This script will configure KCWI for focusing and observing
+#       - open the dust cover (front hatch)
+#       - insert mirror
+# 	- turn on fear lamp
+# 	- open fear lamp shutter
+#	- insert fpcam and make sure it's on
+#
+# ARGUMENTS
+#       none
+#
+# OPTIONS
+echo "****************************************************"
+echo "You have started the start-of-night  script."
+echo "This script will do the following."
+echo " - insert mirror"
+echo " - turn on fear lamp"
+echo " - open fear lamp shutter"
+echo " - insert fpcam and make sure it's on"
+echo " - ask OA to run a guider focus"
+echo " - turn off lamps and close lamp shutters"
+echo " - set calibration mirror to Sky"
+echo " - open the hatch"
+echo "**********************************************"
+echo " "
+echo " "
+echo " "
+
+
+cat <<EOF
+Running MIRA:
+If this is the first night of a run and you don't plan to take sky flats, answer yes.
+If you want to start the night with twilight flats or this is NOT the first night of a run, answer no.
+
+EOF
+printf "Do you want to start the night with a focus (MIRA) ?"
+set response = "$<"
+if( "$response" != "" && $response !~ n* && $response !~ N* ) then
+    echo "Turning on focal plane camera. Please wait..."
+    fpcamPower on
+    echo "Moving the focal plane camera in beam. Please wait ..."
+    slicer fpcam
+    echo "Done"
+endif
+
+
+cat<<EOF
+KCWI is now setting up for GUIDER FOCUS. Please wait...
+EOF
+hatch close
+#fpcamPower on
+#slicer fpcam
+lamp fear on
+lamp thar on
+lamp_shutter fear open
+lamp_shutter thar open
+calmirror Mirror
+calobject Pin300
+
+echo "Please ask the OA to focus the guider"
+# beep and wait...
+echo ""
+echo "Press <Enter> to continue when the focus is done ..."
+set buf = $<
+
+lamp fear off
+lamp_shutter fear close
+lamp thar off
+lamp_shutter thar close
+calmirror Sky
+hatch open
+calobject Dark
+#fpcamPower off
+echo "Turning on DAR correction. Please wait..."
+kcwi start watchdar
+
+
+echo " "
+echo "************************************************************"
+echo "IMPORTANT: Using the web based configuration manager"
+echo "           restore your science configuration BEFORE you take "
+echo "           any science data!"
+echo "************************************************************"
+
+
+

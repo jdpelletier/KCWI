@@ -1,0 +1,218 @@
+#!/bin/csh -f
+#+
+# driftscan -- acquire image while drifting target across the slit
+#
+# Purpose:
+#	Starting with sidereal tracking with objects centered on slits,
+#	offset the telescope and begin tracking at a non-sidereal rate
+#	while acquiring an exposure.  At the end of the exposure, return 
+#	telescope to starting position and restore sidereal track rates.
+#
+# Usage:
+#	driftscan [-v] <length>
+# 
+# Arguments:
+#	-v     = verbose mode
+#	length = length of drift scan [arcsec]
+# 
+# Output:
+# 
+# Restrictions:
+#	- Slit must be oriented N/S so that drift scanning is purely E/W.
+#	- Guide star should be at least 0.5*length arcsec from edge of pickoff mirror
+#	so that it is not lost during offset
+# 
+# Exit values:
+#	 0 = normal completion
+#	 1 = wrong number of arguments
+#
+# Example:
+#	1) Acquire a spectrum while tracking at a non-sidereal rate
+#	over a 10 arcsec length:
+#		driftscan 10
+#
+#-
+# Modification history:
+#	2008-Oct-23	GDW	Original version
+#	2008-Oct-25	GDW	Redo logic at end; issue a telescope move
+#				instead of using "west" command to return
+#				to original position
+#	2013-Mar-10	GDW	Add check for the slit angle being N/S
+#-----------------------------------------------------------------------
+
+set cmd = `basename $0`
+set usage = "Usage: $cmd length"
+set debug = 0
+set wordy = 0
+set format = "%12s = %s %s\n"
+
+# parse flags...
+while ( $#argv > 0 )
+
+  # check for verbose flag...
+  if ( "$1" =~ \-v* ) then
+    set wordy = 1
+    shift
+    continue
+  endif
+
+  # exit flag check if no flags remain...
+  break
+
+end
+
+# verify args...
+if ( $#argv != 1 ) then
+  printf "$usage\n\a"
+  exit 1
+endif
+
+# parse args...
+if ( $#argv > 0 ) then
+    set length = $1
+    shift
+endif
+
+cat <<EOF
+------------------------------------------------------------------------
+                          KCWI Driftscan Script
+------------------------------------------------------------------------
+
+EOF
+
+# verify that the skypa is in the correct range...
+set buf = `skypa`
+set buf2 = `calc "nint($buf)"`
+set skypa = `calc $buf2 + 720 % 360`
+if ( $skypa != 0 && $skypa != 180 && $skypa != 360 ) then
+    set default = n
+    printf "\aWARNING: This script was only designed to work at a position angle of 0 or 180,\nbut position angle is currently $skypa.  Continue anyway? (y/n) [$default]: "
+    set ans = "$<"
+    if ( "$ans" == "" ) then
+	set ans = $default
+    endif
+    set ans = `tolower $ans`
+    if ( "$ans" == "y" ) then
+	printf "OK, continuing despite incorrect slit angle...\n"
+    else
+	printf "Aborted by observer request!\n\a"
+	exit 1
+    endif
+endif
+
+# determine telescope offset (half the drift length)...
+set offset = `calc 0.5 \* $length`
+
+# determine tracking rate...
+set ttime = `tintb`
+
+# get initial position...
+set ra0 = `show -s dcs -terse ra`
+set dec0 = `show -s dcs -terse dec`
+
+# get dec (in radians)...
+set dec = `show -s dcs -binary -terse dec`
+
+# convert arcsec to seconds of time (with correction for dec)...
+set nsec = `calc "$length / 15. / cos($dec)"`
+
+# compute the rate, which is in units of [arcsec/ sec / 15]
+set rate = `calc "$length/$ttime/15."`
+
+# give feedback...
+if ( $wordy ) then
+    printf "Parameters:\n"
+    printf "$format" length $length arcsec
+    printf "$format" offset $offset arcsec
+    printf "$format" ttime $ttime sec
+    printf "$format" nsec $nsec "seconds of time"
+    printf "$format" rate $rate sec/sec
+
+    # check RA/DEC
+    printf "\nPosition before initial offset:\n"
+    printf "$format" RA $ra0 hours
+    printf "$format" Dec $dec0 deg
+    printf "\n"
+endif
+
+if ( $debug ) exit
+
+# save position...
+printf "Marking starting telescope position.\n"
+markbase
+
+# make offset...
+printf "Offsetting telescope by $offset arcsec WEST.\n"
+west $offset
+
+if ( $wordy ) then
+    # check RA/DEC
+    set ra = `show -s dcs -terse ra`
+    set dec = `show -s dcs -terse dec`
+    printf "\nPosition at start of exposure:\n"
+    printf "$format" RA $ra hours
+    printf "$format" Dec $dec deg
+    printf "\n"
+endif
+
+# from here on we need to be careful to clean up keywords if we exit...
+onintr reset
+
+# start exposure...
+printf "Starting exposure..."
+goib >& /dev/null &
+waitfor -s kbds exposip=1
+printf "now exposing.\n"
+
+# begin NS tracking...
+printf "Changing to non-sidereal RA track rate.\n"
+modify -s dcs dra = $rate
+modify -s dcs ddec = 0.
+modify -s dcs dtrack = 1
+
+if ( $wordy ) then
+    printf "Verifying non-sidereal tracking.\n"
+    show -s dcs dra ddec dtrack
+endif
+
+printf "Waiting for exposure to complete.\n"
+waitfor -s kbds exposip=0
+
+# check RA/DEC
+if ( $wordy ) then
+    set ra = `show -s dcs -terse ra`
+    set dec = `show -s dcs -terse dec`
+    printf "\nPosition at end of exposure:\n"
+    printf "$format" RA $ra hours
+    printf "$format" Dec $dec deg
+    printf "\n"
+endif
+
+reset:
+
+# rest tracking to sidereal rates...
+printf "Restoring sideral tracking.\n"
+modify -s dcs dra = 0.
+modify -s dcs ddec = 0.
+modify -s dcs dtrack = 0
+
+printf "Returning telescope to starting position.\n"
+set ra = `sex2dec $ra0`
+set dec = `sex2dec $dec0`
+modify -s dcs targra=$ra targdec=$dec movetel=1
+
+# check RA/DEC
+if ( $wordy ) then
+    set ra = `show -s dcs -terse ra`
+    set dec = `show -s dcs -terse dec`
+    printf "\nPosition after final offset completed:\n"
+    printf "$format" RA $ra hours
+    printf "$format" Dec $dec deg
+    printf "\n"
+endif
+
+printf "Waiting for readout to complete.\n"
+wait
+printf "Done!\n"
+beep
+exit

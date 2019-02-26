@@ -1,0 +1,479 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#	kcwiStart - launch KCWI control software
+#
+# SYNOPSIS
+#       kcwiStart [-no_init]
+#
+# DESCRIPTION
+#       Script to be run for kcwi startup after the user logs in.
+#       Confirm that the servers are running and start them if needed.
+#       Determine the correct desktops to display the guis as they may
+#       be displayed while running under VNC.
+#
+#       This version can be run on either a 1- or 3-headed display.
+#
+# RESTRICTIONS
+#       The $DISPLAY environment variable must be set appropriately.  The
+#       best way to do this is to use a utility such as "xrsh" to run the
+#       program; see example.
+#
+# OPTIONS
+#       -no_init = do not run init script
+#	-eng
+#	-oa
+#
+# EXAMPLES
+#	1) Launch KCWI interface: 
+#		kcwiStart
+#
+# ENVIRONMENT VARIABLES
+#     list of environment variables used
+#
+# FILES
+#     list of files used
+#
+# SERVERS & KEYWORDS
+#     list of the servers and keywords used, for example:
+#
+#     service = kcwi
+#          keywords: sfilter/ifilter, sscale
+#
+# SCRIPTS CALLED
+#     list of the scripts called by this script, for example:
+#
+#     help, syncheck
+#
+# EXIT STATUS
+#     0 - normal exit, no error
+#     1 - script aborted by an interrupt
+#     2 - syncheck error
+#     3 - error parsing command line input
+#     other errors...
+#
+# SEE ALSO
+#     ???
+#-
+#
+# Modification History:
+#       2001-Sep-13     GDW     Original version
+#       2010-May-24  	MK 	Last modified for LRIS
+#       2012-mar-13     MK      Modified for use with MOSFIRE
+#       2012-jun-21     MK      Added pupil rotation and fcs enabling
+#       2012-jun-26     MK      Added startups for all watch processes
+#	2012-jun-28	GDW	Added startups for all audio processes
+#       2012-oct-29     MK      Modified to use start_autodisplay cmd
+#       2012 nov 6      MK      Added auto arrangement of guis on display2
+#       2012 nov 8      MK       Updated to use REMOTEHOST for arranging guis
+#	2012-Dec-07	GDW	Add tklogger
+#       2013-Jan-07     MK      Added rpc check that prompts user to stop first
+#	2013-Jan-12	GDW	Add eventsounds; remove audio alerts
+#	2013-Jan-25	GDW	Added prompt loop on checkrpc
+#       2013-Sep-25     MK      Added the program interface gui
+#	2014-Jan-07	JEL/GDW	Added daemon check
+#	2014-Jan-07	GDW	Remove excessive sleeps
+#       2014-Feb-07     MK      Added long delays for the pig and gui 
+#                               arrangement
+#       2014-Feb-07     MK      Added mxy_logging
+#       2015-Apr-22     MK      Added DAR correction watchdarcorr startup
+#       2016-Jul-13     LR      Modified for use with KCWI
+#------------------------------------------------------------------------------
+
+set buf = $0
+set cmd = $buf:t
+set separator = "----------------------------------------"
+
+
+# additional defaults
+set do_init = 1         # run init
+set eng = 0
+set oa = 0
+
+# parse flags...
+while ( $#argv > 0 )
+
+  # check for -no_init flag...
+  if ( "$1" =~ \-nit* ) then
+    set do_init = 0
+    shift
+    continue
+  endif
+
+  # check for -eng flag...
+  if ( "$1" =~ \-eng* ) then
+    set eng = 1
+    shift
+    continue
+  endif
+
+  # check for -oa flag...
+  if ( "$1" =~ \-oa* ) then
+    set oa = 1
+    shift
+    continue
+  endif
+
+
+
+  # exit flag check if no flags remain...
+  break
+
+end
+
+# validate arguments...
+if ( $#argv > 0) then
+    echo "Usage: $0 [-no_init]"
+    exit 1
+endif
+
+# -------------------------------------------------------------------
+# check for daemons...NOTE that we do NOT check on watchfcs, watchrot,
+# and watchslew processes because these run as user 'mosfire' rather
+# than under the numbered account and hence their existence does NOT
+# present a conflict.
+# -------------------------------------------------------------------
+set running_daemons = ()
+foreach daemon ( autodisplay ds9 )
+    set i = `get_kcwi_pid kcwidisplayb`
+    if ( "$i" != "" ) then
+	set running_daemons = ($running_daemons $daemon)
+    endif
+end
+
+if ( $#running_daemons != 0 ) then
+    set message_file = /tmp/$cmd.$$
+    cat >! $message_file  <<EOF
+Can't start KCWI software because these daemons are already running:
+
+    $running_daemons
+
+See output below.  You must stop these conflicting daemons to launch
+KCWI software!
+
+EOF
+    ct >> $message_file
+    tkmessage -type error < $message_file
+    \rm $message_file
+    exit 1
+endif
+
+# -------------------------------------------------------------------
+# Warn observer if other rpc tasks are currently running and under
+# what accounts.
+# -------------------------------------------------------------------
+set keepgoing = 1
+
+  ctx > /dev/null
+  if ( $status > 0 ) then
+    set message_file = /tmp/$cmd.$$
+    cat >! $message_file  <<EOF
+Can't start KCWI software. There is something wrong with the software running on kcwiserver.
+
+Please check output below and inform the Support Astronomer.
+
+EOF
+    ctx >> $message_file
+    tkmessage -type error < $message_file
+    \rm $message_file
+    exit 1
+  endif
+
+
+# -------------------------------------------------------------------
+# define display layout appropriate for number of screens on host...
+# -------------------------------------------------------------------
+
+if ( ! $?DISPLAY) then
+    printf "ERROR: must set DISPLAY before running this program\n"
+    exit 1
+endif
+
+# set display variables...
+    set uidisp0 = `uidisp 0`
+    set uidisp1 = `uidisp 1`
+    set uidisp2 = `uidisp 2`
+    set uidisp3 = `uidisp 3`
+
+#echo "uidisp0 is set to ${uidisp0}"
+#echo "uidisp1 is set to ${uidisp1}"
+#echo "uidisp2 is set to ${uidisp2}"
+sleepdots 3
+
+# ---------------------------------------------------------------
+# allow numbered user to restore default settings if desired...
+# ---------------------------------------------------------------
+if ( $do_init ) then
+    clear
+    kcwiInit
+    if ( $status > 0 ) then
+    set message_file = /tmp/$cmd.$$
+    cat >! $message_file  <<EOF
+Can't start KCWI software. Some of the mechanisms are locked.
+
+Please inform the Support Astronomer.
+
+EOF
+    tkmessage -type error < $message_file
+    \rm $message_file
+    exit 1
+  endif
+endif
+
+# ---------------------------------------------------------------
+# ensure that MOSFIRE watchslew is running ...
+# ---------------------------------------------------------------
+#set fcspid = `ct | grep -c "watchslew"`
+#if ($fcspid == 0  ) then
+#  echo "starting watchslew process... "
+#  mosfire start watchslew
+#endif
+
+# ---------------------------------------------------------------
+# ensure that MOSFIRE watchrot is running ...
+# ---------------------------------------------------------------
+#set fcspid = `ct | grep -c "watchrot"`
+#if ($fcspid  == 0  ) then
+#  echo "starting watchrot process... "
+#  mosfire start watchrot
+#endif
+
+# ---------------------------------------------------------------
+# ensure that MOSFIRE watchfcs is running ...
+# ---------------------------------------------------------------
+#set fcspid = `ct | grep -c "watchfcs"`
+#if ($fcspid  == 0 ) then
+#  echo "starting watchfcs process... "
+#  mosfire start watchfcs
+#endif
+
+# ---------------------------------------------------------------
+# ensure that MOSFIRE watchdarcorr is running ...
+#     This is for DAR corrections
+# ---------------------------------------------------------------
+#set fcspid = `ct | grep -c "watchdarcorr"`
+#if ($fcspid  == 0 ) then
+#  echo "starting watchdarcorr process... "
+#  mosfire start watchdarcorr
+#endif
+
+
+# ---------------------------------------------------------------
+# pause 4 seconds to provide watch processes to finish.
+# ---------------------------------------------------------------
+#printf "Waiting for 'watch' processes to finish."
+#sleepdots 4
+#printf "OK\n"
+
+# ---------------------------------------------------------------
+# ensure that MOSFIRE fcs tracking is enabled 
+# ---------------------------------------------------------------
+#cat <<EOF
+#$separator
+#Enable the FCS and Pupil Rotator 
+#$separator
+#EOF
+
+#echo "Turning on pupil tracking"
+#mosfireSetupPupilTracking
+
+#echo "Turning on FCS control"
+#modify -s mosfire fcson=1
+#sleep 1
+#modify -s mfcs enable=1
+#sleep 1
+
+# ---------------------------------------------------------------
+# Start the kcwi DS9 Display utility and CSU audio widgets
+# ---------------------------------------------------------------
+#setenv DISPLAY $uidisp1
+# Start KCWI's display software (ds9) and python relay
+
+cat <<EOF
+$separator
+Starting Blue image display software DS9
+$separator
+EOF
+kcwi start kcwidisplayb -D $uidisp1
+
+cat <<EOF
+$separator
+Starting focal plane display software DS9
+$separator
+EOF
+kcwi start kfcdisplay -D $uidisp1
+
+cat <<EOF
+$separator
+Starting Magiq display software DS9
+$separator
+EOF
+kcwi start magiqdisplay -D $uidisp2
+
+#cat <<EOF
+#$separator
+#Starting Soundboard
+#$separator
+#EOF
+#kcwi start soundboard
+
+cat <<EOF
+$separator
+Starting Eventsound
+$separator
+EOF
+kcwi start eventsounds -D $uidisp2
+
+
+cat <<EOF
+$separator
+Starting KCWI Configuration Manager Backend
+$separator
+EOF
+kcwi start kcwiConfManager
+
+
+# start eventsounds
+cat <<EOF 
+$separator
+Starting eventsounds
+**** OVERRIDE: Not ready yet ****
+$separator
+EOF
+#if ( $atWMKO == 1) then
+#    ( sleep 5 ; eventsounds ) &
+#endif
+
+
+# start the Program Interface Gui
+cat <<EOF
+$separator
+Starting Program Interface Gui
+**** OVERRIDE: Not ready yet ****
+$separator
+EOF
+#if ( $atWMKO == 1) then
+#    ( sleep 15 ; /net/kalahuipuaa/local/apps1/kroot/summit/instr/koa/piglet) &
+#endif
+
+
+
+# ---------------------------------------------------------------
+# Start the KCWI Desktop
+# ---------------------------------------------------------------
+cat <<EOF
+$separator
+Starting KCWI desktop
+$separator
+EOF
+if ( $eng == 1 ) then
+    kcwi start kdesktop_eng -D $uidisp0
+else if ( $oa == 1 ) then
+    kcwi start kdesktop_oa -D $uidisp0
+else
+    kcwi start kdesktop -D $uidisp0
+endif
+
+# ----------------------------------------------------------------------
+# launch tklogger error checker...
+# ----------------------------------------------------------------------
+setenv DISPLAY $uidisp2
+cat <<EOF
+$separator
+Starting TkLogger on $DISPLAY
+**** OVERRIDE: Not ready yet
+$separator
+EOF
+#if ( $atWMKO == 1 ) then
+#    kcwiStartTklogger
+#endif
+
+
+# ---------------------------------------------------------------
+# Start the compass rose
+# ---------------------------------------------------------------
+setenv DISPLAY $uidisp2
+cat <<EOF
+$separator
+Starting Tkrose on $DISPLAY
+**** OVERRIDE: Not read yet
+$separator
+EOF
+#if ( $atWMKO == 1 ) then
+#    start_tkrose $uidisp2
+#endif
+
+# ---------------------------------------------------------------
+# Start xterm on control2
+# ---------------------------------------------------------------
+setenv DISPLAY $uidisp2
+cat <<EOF
+$separator
+Starting KCWIServerXterm on $DISPLAY
+$separator
+EOF
+#    ssh -X -l $USER ${kcwihost} xterm -title KCWIServerXterm -name Summit &
+
+
+# ----------------------------------------------------------------------
+# Arrange Guis on the desktops
+# ----------------------------------------------------------------------
+cat <<EOF
+$separator
+Re-arranging GUIs
+$separator
+EOF
+sleep 10
+kcwiArrangeGuis 
+
+cat <<EOF
+$separator
+Starting KCWI Calibration GUI
+$separator
+EOF
+kcwi start kcwiCalibrationGui -D $uidisp2
+
+cat <<EOF
+$separator
+Starting KCWI Exposure GUI
+$separator
+EOF
+kcwi start kcwiExposureGui -D $uidisp1
+
+cat <<EOF
+$separator
+Starting KCWI Status GUI
+$separator
+EOF
+kcwi start kcwiStatusGui -D $uidisp1
+
+cat <<EOF
+$separator
+Starting KCWI Offset GUI
+$separator
+EOF
+kcwi start kcwiOffsetGui -D $uidisp2
+
+
+
+# power on hatch
+kcwiPower 1 7 on
+hatch open
+hatch close
+
+
+# print completion message....
+cat <<EOF
+
+      ----------------------------------------------------------
+		KDESKTOP might take a while to appear
+      ----------------------------------------------------------
+		       KCWI startup complete!
+      ----------------------------------------------------------
+EOF
+printf "\a\nPress <Enter> to exit..."
+set response = "$<"
+
+exit

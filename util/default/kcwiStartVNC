@@ -1,0 +1,46 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#	kcwiStartVNC - start 3 VNC servers for instrument control at Caltech
+#
+# SYNOPSIS
+#     kcwiStartVNC
+#
+# DESCRIPTION
+#     Checks if the VNC servers are running. If they aren't, start them
+#
+# OPTIONS
+#     
+
+
+set default_geometry = 1670x990
+set args = "-nolisten local -alwaysshared"
+setenv INSTRUMENT "KCWI"
+
+set required_vnc_numbers = (50 51 52)
+
+foreach server ($required_vnc_numbers) 
+    set pid = ""
+    set pid = `ps -ef | awk '$9==":${server}" {print $2}'`
+    if ($pid != "") then
+	echo "VNC number ${server} is already running"
+    else
+	echo "Starting VNC number ${server}"
+	switch ($server)
+	case 50:
+	    set desktop = "control0"
+	    breaksw
+	case 51:
+	    set desktop = "control1"
+	    breaksw
+	case 52:
+	    set desktop = "control2"
+	endsw
+	
+	set name = ${INSTRUMENT}-${USER}-$desktop
+	nohup vncserver :${server} -geometry ${default_geometry} -name $name $args
+
+     endif
+end

@@ -1,0 +1,130 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#       skypa -- set rotator celestial position angle in position angle mode
+#
+# SYNOPSIS
+#	skypa [-relative]  [angle]
+# 
+# DESCRIPTION
+#	With no arguments, show the current rotator position angle as
+#	it would appear on FACSUM.  With one numeric argument, set the
+#	rotator to the specified sky position angle.
+#
+# ARGUMENTS
+#	angle = rotator position angle [degrees]
+# 
+# OPTIONS
+#
+#
+# RESTRICTIONS
+#	- KCWI must be the selected instrument
+#
+# SERVERS & KEYWORDS
+#     dcs: rotdest, rotmode, rotstat
+#
+# SCRIPTS CALLED
+#
+# EXIT STATUS
+#	0 = normal completion
+#
+# EXAMPLES
+#	1) Show the current PA:
+#		skypa
+#
+#	2) Set the current PA to 123.45 deg:
+#		skypa 123.45
+#
+#	2) Change the sky PA by -10 deg:
+#		skypa -rel -10
+#
+#-
+# Modification history:
+#	2011apr27	MK	Original version
+#                               May need to update with rotational offset
+#	2012jun27	GDW	Removed fudge factor "paoffset"
+#				Added -rel for relative move
+#-------------------------------------------------------------
+
+set buf = $0
+set cmd = $buf:t
+set usage = "Usage: $cmd [-relative] [angle]"
+set mode = absolute
+
+# parse flags...
+while ( $#argv > 0 )
+
+  # check for -debug flag...
+  if ( "$1" =~ \-d* ) then
+    set debug = 1
+    printf "DEBUG MODE enabled\n\a"
+    shift
+    continue
+  endif
+
+  # check for -relative flag...
+  if ( "$1" =~ \-r* ) then
+    set mode = relative
+    shift
+    continue
+  endif
+
+  # exit flag check if no flags remain...
+  break
+
+end
+
+# verify args...
+if ( $#argv > 1 ) then
+  printf "$usage\n"
+  exit 1
+endif
+
+# check the instrument...
+set instrume = `show -s dcs -terse instrume`
+if ( "$instrume" != "KCWI" ) then
+    printf "ERROR -- current instrument $instrume is not KCWI\n\a"
+    exit 2
+endif
+
+# take appropriate action...
+if ( $#argv == 0 ) then
+
+    show -s dcs -terse rotposn
+
+else
+
+    # validate argument...
+    set skypa = $1
+    is_float $skypa > /dev/null
+    if ( $status != 0 ) then
+	printf "$usage\n"
+	exit 1
+    endif
+
+    # set rotator angle...
+    if ( "$mode" == "relative" ) then
+        set rotdest = `show -s dcs -terse rotdest`
+        set rotdest = `calc $rotdest + $skypa`
+    else
+	set rotdest = $skypa
+    endif
+
+    if ( $?debug ) then 
+	set buf = echo
+    else
+	set buf = ""
+    endif
+
+#    set trkm = `show -t -s kros trckmode`
+
+#    $buf modify -s kros settrckmode=0
+#    $buf sleep 0.5
+    $buf modify -s dcs ROTDEST=$rotdest ROTMODE=1
+    $buf sleep 3
+    $buf waitfor -s dcs ROTSTAT=8
+#    $buf modify -s kros settrckmode=$trkm
+    
+endif

@@ -1,0 +1,73 @@
+#!/bin/csh 
+# 161109
+# MM -- matmat@caltech.edu
+#
+# Moves the designated pinhole to the specified location in mm at the slicer
+# Proper use assumes the axis has been zeroed and that the 
+# object stage is at one of the adjustable positions. 
+# (pin300, pin500, horlin)
+# if you want to use some other pattern, use kcas_xyoffset to adjust
+# the offsets
+#
+# the magnification was measured using scripts and analysis software
+# in /home/kcwi dev/testing/161109-mmspot
+# 
+# there is a slight rotation (-0.14 degrees) that this program ignores
+# 
+
+# we need two parametrers
+
+if ( $# != 2 ) then
+    echo 'Incorrect number of parameters. Exiting.' >> /dev/stderr
+    echo '' >> /dev/stderr
+    echo '     Usage:' >> /dev/stderr
+    echo '     kcas_pinhole <x_mm> <y_mm>' >> /dev/stderr
+    echo '     x_mm, y_mm : pattern position in mm at slicer' >> /dev/stderr
+    echo '' >> /dev/stderr
+    exit 1
+endif
+
+set calserver=kcas
+
+# make sure this is a pattern we want to move. 
+set pattern=`show -t -s $calserver calxname`
+set pattern=`echo "$pattern" | tr "[A-Z]" "[a-z]"`
+switch ($pattern)
+    case pin300:
+    case pin500:
+    case horlin:
+	breaksw
+	default:
+	echo "Invalid pattern for this type of motion (${pattern}). Exiting." >> /dev/stderr
+	exit 2
+	breaksw
+endsw
+
+
+# conversion constants
+
+# stage microsteps per mm 
+set usteps_per_mm=2519.685
+# magnification constant 
+set xmag=0.9850
+set ymag=0.9933
+
+set x=$1
+set y=$2
+
+set servers=($calserver)
+
+# Make sure the server is running.
+foreach server ($servers)
+if (! `kcwiCheckServer $server`) then
+    echo 'Server "$server" no running. Exiting.' >> /dev/stderr
+endif
+
+# do the math.
+set xpos=` echo " scale=0; $x * $usteps_per_mm / $xmag" | bc -l`
+set ypos=` echo " scale=0; $y * $usteps_per_mm / $ymag" | bc -l`
+
+# execute the move
+kcas_xyoffset $xpos $ypos >>! /dev/null
+
+end

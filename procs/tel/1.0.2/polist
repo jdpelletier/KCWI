@@ -1,0 +1,50 @@
+#!/bin/csh -f
+#+
+# polist -- list all of the defined pointing origins
+#
+# Purpose:
+#	Print out a table showing index, name, XIM and YIM for all defined pointing origins
+#
+# Usage:
+#	polist
+# 
+# Arguments:
+#	None
+# 
+# Example:
+#	1) List all pointing origins:
+#	[20] lris12@lris-red: ./polist
+#	ponum      poname     poxpos     poypos    
+#	---------- ---------- ---------- ----------
+#	current    LRIS            -2.36    -307.80
+#	1          REFM          -240.86    -210.68
+#	2          LRIS            -2.36    -307.80
+#	3          POL              1.58    -269.60
+#	4          REF              9.52    -263.56
+#	5          Pickoff         27.95    -260.63
+#	6          MIRA           -28.61    -256.38
+#	7          slitb          -19.74    -260.22
+#	8          LRISB          -19.91    -315.57
+#	9          REFO           -85.80      68.94
+#	
+#-
+# Modification history:
+#	2010-Jan-23	GDW	Original version
+#-----------------------------------------------------------------------
+
+printf "# %-8s %-10s %-10s %-10s\n" ponum poname poxpos poypos
+printf "# %-8s %-10s %-10s %-10s\n" "--------" "----------" "----------" "----------"
+
+set poname = `show -terse -s dcs poname`
+set poxpos = `show -terse -s dcs poxpos`
+set poypos = `show -terse -s dcs poypos`
+printf "%-10s %-10s %10s %10s\n" current $poname $poxpos $poypos
+
+foreach i ( 1 2 3 4 5 6 7 8 9 )
+    set poname = `show -terse -s dcs poname$i`
+    set poxpos = `show -terse -s dcs poxpos$i`
+    set poypos = `show -terse -s dcs poypos$i`
+
+    printf "%-10s %-10s %10s %10s\n" $i $poname $poxpos $poypos
+
+end

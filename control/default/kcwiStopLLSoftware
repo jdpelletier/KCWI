@@ -1,0 +1,11 @@
+#!/usr/bin/csh -f
+#
+# kcwiStopLLSoftware -- stop the servers and the keygrabber
+#
+
+kcwi stop kcwi
+kcwi stop keygrabber
+#kcwi stop watchrot
+kcwi stop servers
+
+

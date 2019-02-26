@@ -1,0 +1,61 @@
+#!/bin/csh -f
+#+
+# KCwI library of scripts
+#
+# NAME
+#	pause -- suspend execution until user presses <RETURN>
+#
+# SYNOPSIS
+#	pause [prompt]
+#
+# DESCRIPTION
+#	Stop program execution, print out a message, and wait until
+#	the user presses the <RETURN> key before exiting
+#     Output:
+#	Message is printed on stdout
+# 
+#     Restrictions:
+#	Prompts containing characters with special meaning to the shell
+#	(e.g., *()!&#) must be enclosed within double quotes (").
+#
+# ARGUMENTS
+#	prompt = message to be printed on the terminal
+#
+# OPTIONS
+#
+# EXAMPLES
+#	1) To pause program execution, use:
+#		pause
+#
+#	2) To pause and print a message, use:
+#		pause Tell the OA to stop guiding, then press RETURN
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#
+# SCRIPTS CALLED
+#
+# EXIT STATUS
+#	 0 = normal completion
+#
+# SEE ALSO
+#-
+#
+# Modification history:
+#	Date unknown	???	Original version
+#	2000-Jul-04	GDW	Added description
+#       2012-Mar-09     MK      Modified for use with MOSFIRE
+#       2015-Oct-20     LR      Added to KCWI library
+#-----------------------------------------------------------------------
+
+# define default...
+set text = "Press the <ENTER> key to continue..."
+
+# accept user's alternative if offered...
+if ($#argv > 0) set text = "$* >>"
+
+printf "\n$text"
+set junk = ($<)

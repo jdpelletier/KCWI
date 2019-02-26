@@ -1,0 +1,365 @@
+#! /kroot/rel/default/bin/kpython3
+
+import sys
+import subprocess
+import os
+from pymongo import MongoClient
+from bson.objectid import ObjectId
+from flask import Flask,render_template,jsonify,json,request
+#from fabric.api import *
+
+reldir = os.getenv('RELDIR')
+datadir = os.path.join(reldir, 'data', 'KCWIConfManager')
+
+template_dir = os.path.join(datadir, 'templates')
+template_dir = os.path.abspath(template_dir)
+
+static_dir = os.path.join(datadir, 'static')
+static_dir = os.path.abspath(static_dir)
+
+application = Flask(__name__, template_folder=template_dir,
+                    static_folder=static_dir)
+
+client = MongoClient('observinglogs')
+db = client.KCWI
+
+
+class KCWIConfig():
+    def __init__(self):
+        # format is : kcwi script/keyword, database keyword, True if mandatory, False if optional
+        self.elements = {
+            '1': ['statenam','statenam',True],
+            '2': ['image_slicer','image_slicer',False],
+            '3': ['filterb','filterb',False],
+            '4': ['gratingb','gratingb',False],
+            '5': ['nsmaskb','nsmaskb',False],
+            '6': ['ampmodeb','ampmodeb',False],
+            '7': ['gainmulb','gainmulb',False],
+            '8': ['ccdmodeb','ccdmodeb',False],
+            '9': ['binningb','binningb',False],
+            '10':['cal_mirror','cal_mirror',False],
+            '11':['polarizer','polarizer',False],
+            '12':['cwaveb','cwaveb',False],
+            '13':['pwaveb','pwaveb',False],
+            '14':['progname','progname',False],
+            '15':['camangleb','camangleb',False],
+            '16':['focusb','focusb',False]
+            }
+
+    def get(self, configurationId):
+        self.configuration = db.Configurations.find_one({'_id':ObjectId(configurationId)})
+
+        configurationDetail={}
+        for key in self.elements.keys():
+            kcwi_keyword = self.elements[key][0]
+            mongo_keyword = self.elements[key][1]
+            required = self.elements[key][2]
+            if required:
+                try:
+                    configurationDetail[mongo_keyword] = self.configuration[mongo_keyword]
+                except Exception as e:
+                    raise KeyError("Missing keyword %s" % (e))
+
+            else:
+                try:
+                    configurationDetail[mongo_keyword] = self.configuration[mongo_keyword]
+                except:
+                    configurationDetail[mongo_keyword]=""
+        configurationDetail['id']=str(self.configuration['_id'])
+        return configurationDetail
+
+    def put(self, data):
+        new_config = {}
+        for key in self.elements.keys():
+            kcwi_keyword = self.elements[key][0]
+            mongo_keyword = self.elements[key][1]
+            required = self.elements[key][2]
+            if required:
+                try:
+                    new_config[mongo_keyword] = data[mongo_keyword]
+                except Exception as e:
+                    raise KeyError("Missing keyword %s" % (e))
+            else:
+                try:
+                    new_config[mongo_keyword] = data[mongo_keyword]
+                except:
+                    pass
+
+        if self.is_name_unique(new_config['statenam'], new_config['progname']) is False:
+            new_config['statenam']=new_config['statenam']+"_DUPLICATE"
+        db.Configurations.insert_one(new_config)
+
+    def is_name_unique(self,name,program):
+        configurations = self.get_all_configs(program)
+        names = [x['statenam'] for x in configurations]
+        if name in names:
+            sys.stdout.write("A configuration with this name already exists \n")
+            return False
+        else:
+            return True
+
+
+
+
+    def put_from_file(self, data, program,filename):
+        print("Running put from file\n")
+        new_config = {}
+        #if not 'progname' in data:  ### commenting out this line means that the program loaded from a file goes into the current program id
+        data['progname'] = program
+        if not 'statenam' in data:
+            data['statenam'] = filename
+        for key in self.elements.keys():
+            kcwi_keyword = self.elements[key][0]
+            mongo_keyword = self.elements[key][1]
+            required = self.elements[key][2]
+            if required:
+                try:
+                    if 'wave' in mongo_keyword:
+                        data[kcwi_keyword] = "%.1f" % float(data[kcwi_keyword])
+                    new_config[mongo_keyword] = data[kcwi_keyword]
+                except Exception as e:
+                    print("Missing keyword %s\n" % (kcwi_keyword))
+                    raise KeyError("Missing keyword %s" % (e))
+            else:
+                try:
+                    new_config[mongo_keyword] = data[kcwi_keyword]
+                except:
+                    pass
+
+        print(new_config)
+        db.Configurations.insert_one(new_config)
+
+    def update(self, configurationId, data):
+        new_config = {}
+        for key in self.elements.keys():
+            kcwi_keyword = self.elements[key][0]
+            mongo_keyword = self.elements[key][1]
+            required = self.elements[key][2]
+            if required:
+                try:
+                    new_config[mongo_keyword] = data[mongo_keyword]
+                except Exception as e:
+                    raise KeyError("Missing keyword %s" % (e))
+            else:
+                try:
+                    new_config[mongo_keyword] = data[mongo_keyword]
+                except:
+                    pass
+
+        db.Configurations.update_one({'_id':ObjectId(configurationId)},{'$set':new_config})
+
+    def delete(self, configurationId):
+        db.Configurations.remove({'_id':ObjectId(configurationId)})
+
+    def get_all_configs(self, program=None):
+        # return an empty array if there is no program selected
+        if program is None or program=="":
+            return []
+        sys.stdout.write( "Looking for configurations for program %s\n" % (program))
+        # query the database for configurations
+        configurations = db.Configurations.find({'progname':program})
+        # empty array. It's going to be the return of the function
+        configurationList = []
+        # iterate on the cursor retrieved as a result of the query
+        for configuration in configurations:
+            # a configuration container
+            confItem={}
+            # iterate on the keys
+            for key in self.elements.keys():
+                kcwi_keyword = self.elements[key][0]
+                mongo_keyword = self.elements[key][1]
+                required = self.elements[key][2]
+                #if required:
+                #    confItem[mongo_keyword] = configuration[mongo_keyword]
+                #else:
+                try:
+                    confItem[mongo_keyword] = configuration[mongo_keyword]
+                except:
+                    confItem[mongo_keyword]=""
+            # always add the database id
+            confItem['id']=str(configuration['_id'])
+            #sys.stdout.write( str(configuration) +"\n")
+            # add the item to the list
+            configurationList.append(confItem)
+
+        return configurationList
+
+
+    def save_state(self, configurationId):
+        configurationDetails = self.get(configurationId)
+        #sys.stdout.write( str(configurationDetails) + "\n")
+        #id = str(self.configuration['_id'].generation_time).replace(" ","-")
+        id = str(self.configuration['_id']).replace(" ","-")
+        name = str(self.configuration['statenam']).replace(" ","-")
+        program = str(self.configuration['progname']).replace(" ","-")
+        sys.stdout.write( "Attemting to execute configuration %s\n" % (configurationId))
+        sys.stdout.write( "Producing save_state file\n")
+        outdir = self.get_outdir()
+        self.outfile = outdir+"/"+program+"___"+name+".state"
+        stateFile = open(self.outfile, 'w')
+
+        for key in self.elements.keys():
+            kcwi_keyword = self.elements[key][0]
+            mongo_keyword = self.elements[key][1]
+            try:
+                value = configurationDetails[mongo_keyword]
+                if value !="":
+                    sys.stdout.write( "%s = %s\n" % (kcwi_keyword, value))
+                    stateFile.write( "%s = %s\n" % (kcwi_keyword, value))
+            except:
+                pass
+        stateFile.write( "%s = %s\n" % ("stateid",str(id)))
+        stateFile.close()
+
+    def execute(self, configurationId):
+        self.save_state(configurationId)
+        command = 'restore_state '+self.outfile
+        stdoutdata = subprocess.getoutput(command)
+        #print(stdoutdata)
+
+    def get_outdir(self):
+        command = 'show -s kbds -terse outdir'
+        stdoutdata = subprocess.getoutput(command)
+        return stdoutdata.split()[0]
+
+
+
+@application.route("/addConfiguration",methods=['POST'])
+def addConfiguration():
+    #try:
+        json_data = request.json['info']
+        print(json_data)
+        KCWIConfig().put(json_data)
+        return jsonify(status='OK',message='inserted successfully')
+
+    #except Exception as e:
+        #return jsonify(status='ERROR',message=str(e))
+
+@application.route('/')
+def showConfigurationsList():
+    return render_template('list.html')
+
+@application.route('/getConfiguration',methods=['POST'])
+def getConfiguration():
+    #print request.url_root
+    #print request.url
+    #print request.args
+    #print request.args.keys()
+    try:
+        configurationId = request.json['id']
+        configurationDetail=KCWIConfig().get(configurationId)
+        sys.stdout.write( "Retrieved this configuration %s\n" % (str(configurationDetail)))
+        return json.dumps(configurationDetail)
+    except Exception as e:
+        return str(e)
+
+@application.route('/updateConfiguration',methods=['POST'])
+def updateConfiguration():
+    try:
+        data = request.json['info']
+        configurationId = data['id']
+        KCWIConfig().update(configurationId, data)
+        return jsonify(status='OK',message='updated successfully')
+    except Exception as e:
+        return jsonify(status='ERROR',message=str(e))
+
+@application.route("/getConfigurationList",methods=['POST'])
+def getConfigurationList():
+    #try:
+        program = request.json['progname']
+        #program = 'prog1'
+        configurationList = KCWIConfig().get_all_configs(program)
+        #sys.stdout.write( str(json.dumps(configurationList)) + "\n")
+        return json.dumps(configurationList)
+    #except Exception as e:
+        #return str(e)
+
+@application.route("/saveAllConfigurations", methods=['POST'])
+def saveAllConfigurations():
+    try:
+        program = request.json['progname']
+    except Exception as e:
+        sys.stdout.write( 'The program is not defined (%s) \n' % (e))
+        return jsonify(status='ERROR', message=str(e))
+
+    try:
+        configurations = KCWIConfig().get_all_configs(program)
+    except Exception as e:
+        sys.stdout.write( 'Error retrieving configurations for program %s (%s) \n' % (program, e))
+        return jsonify(status='ERROR', message=str(e))
+
+
+
+
+    for configuration in configurations:
+        try:
+            KCWIConfig().save_state(configuration['id'])
+        except Exception as e:
+            sys.stdout.write( 'Error retrieving configuration %s (%s) \n' % (configuration['id'], e))
+            return jsonify(status='ERROR', message=str(e))
+
+    return jsonify(status='OK', message="All configurations have been saved to outdir")
+
+
+@application.route("/saveConfiguration",methods=['POST'])
+def saveConfiguration():
+    try:
+        configurationId = request.json['id']
+        configurationDetail = KCWIConfig().save_state(configurationId)
+        return jsonify(status='OK',message="State file saved successfully")
+
+    except Exception as e:
+        sys.stdout.write( 'Error is ' + str(e) + '\n')
+        return jsonify(status='ERROR',message=str(e))
+
+@application.route("/executeConfiguration",methods=['POST'])
+def executeConfiguration():
+    try:
+        configurationId = request.json['id']
+        configurationDetail = KCWIConfig().execute(configurationId)
+        return jsonify(status='OK',message="Execution was successful")
+
+    except Exception as e:
+        sys.stdout.write( 'Error is ' + str(e) + '\n')
+        return jsonify(status='ERROR',message=str(e))
+
+@application.route("/deleteConfiguration",methods=['POST'])
+def deleteConfiguration():
+    try:
+        configurationId = request.json['id']
+        KCWIConfig().delete(configurationId)
+        return jsonify(status='OK',message='deletion successful')
+    except Exception as e:
+        return jsonify(status='ERROR',message=str(e))
+
+@application.route("/sendFile",methods=['POST'])
+def sendFile():
+    data={}
+    content = request.json['file'].split("\n")
+    program = request.json['progname']
+    filename = request.json['filename']
+    print(content)
+    print("Progname: %s \n" % program)
+    print("File name: %s \n" % filename)
+    for line in content:
+        print(line)
+        try:
+            key = line.split("=")[0].strip()
+            value = line.split("=")[1].strip()
+            data[key]=value
+        except:
+            pass
+    try:
+        KCWIConfig().put_from_file(data,program,filename)
+        return jsonify(status='OK',message="Configuration uploaded")
+    except Exception as e:
+        print("Failed to add to database\n")
+        return jsonify(status='ERROR',message="Failed to upload: %s" % (str(e)))
+    #print(data)
+
+
+
+
+if __name__ == "__main__":
+    application.run(host='0.0.0.0', port=5001, debug=False)
+

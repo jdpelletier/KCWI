@@ -1,0 +1,118 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#     kcwiEndNight - terminate KCWI interfaces and put into safe mode
+#
+# SYNOPSIS
+#       kcwiEndNight
+#
+# DESCRIPTION
+#       This script will shutdown the KCWI gui interfaces
+#       and put the instrument into a safe mode.
+#       - closed the dust cover (front hatch)
+#       - inserts a dark filter
+#       - runs make_dcs_sim (disables DCS communications
+#       - disables FCS
+#       - disables pupil mask tracking
+#
+# ARGUMENTS
+#       none
+#
+# OPTIONS
+#       none
+#
+# EXAMPLES
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#
+# SCRIPTS CALLED
+#
+# EXIT STATUS
+#     0 - normal exit, no error
+#     1 - script aborted by an interrupt
+#
+# Modification History:
+#       2012-apr-1      MK      Original version
+#       2012-jun-22     MK      Updated
+#       2013-Apr-22     MK      Modified dust cover close operation
+#	2013-Apr-28	GDW	- Moved hatch and filter logic to 
+#                                  kcwiSafeMode
+#				- Added logic to turn off dome lamps
+#       2015-Apr-22     MK      Added stop for watchdarcorr
+#       2016-Jul-18     LR      Modified for KCWI
+#------------------------------------------------------------------------------
+
+set cmd = `basename $0`
+
+echo "****************************************************"
+echo "You have started the end-of-night shutdown script."
+echo "This script will do the following."
+echo " - close the dust cover"
+echo " - park the blue exchanger"
+echo " - halts the focal plane camera"
+echo " - power down the magiq guider"
+echo " - power down the calibration lamps"
+echo " - stop the rotator"
+echo "**********************************************"
+echo " "
+echo " "
+echo " "
+
+# ---------------------------------------------------------------
+# Close the dust cover
+# Park the optics
+# Shutdown focal plane camera
+# shutdown the magiq guider - NO! changed on 10/17/2017 LR
+# turn off lamps
+# ---------------------------------------------------------------
+hatch close
+kcwiStopRotator
+fpcamPower off
+kcwiStop 
+parkbex
+
+#kcwiPower 1 2 off
+
+# ---------------------------------------------------------------
+# Stop the KCWI software
+# ---------------------------------------------------------------
+
+
+# ---------------------------------------------------------------
+# Disable the hatch
+# ---------------------------------------------------------------
+kcwiPower 1 7 off
+#----------------------------------------------------------------
+# Ensure the internal KCWI lamps are off
+#----------------------------------------------------------------
+lamp all off
+
+#---------------------------
+# DISABLE DAR
+#---------------------------
+kcwi stop watchdar
+
+#----------------------------------------------------------------
+# If KCWI is the current instrument, ensure the dome lamps 
+# are off...
+#----------------------------------------------------------------
+#set currinst = `show -s dcs -terse currinst`
+#if ( "$currinst" == "KCWI" ) then
+#    domelamps off
+#endif
+
+# print completion message....
+cat <<EOF
+
+    -------------------------------------------------------------
+	  KCWI Instrument End-of-Night shutdown complete
+    -------------------------------------------------------------
+EOF
+
+exit

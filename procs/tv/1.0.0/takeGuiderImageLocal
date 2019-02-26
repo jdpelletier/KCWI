@@ -1,0 +1,129 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#        takeGuiderImage
+# SYNOPSIS
+#        takeGuiderImge
+# DESCRIPTION
+#	this is a wrapper to take an offset guider image using the 
+#       offset guide camera which should already be exposing.
+#
+# ARGUMENTS
+#
+# OPTIONS
+#
+# EXAMPLES
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#
+# SCRIPTS CALLED
+#
+# EXIT STATUS
+#
+# SEE ALSO
+#  k2obs on k2server ~k1obs/magiq/mosfire/takeGuiderImage
+#  SAT widget
+#
+# Modification History:
+# 2012-mar-09 - MK: Original Version
+#
+#-----------------------------------------------------------------------
+#!/bin/csh -f
+#
+# takeGuiderImage
+#
+# Acquire a single full frame image. Assumes that guideing is 
+#   currently, occuring on the offset guider
+# 
+# 2011-Oct-12 MK  Original version - modified from LRIS version on
+#                                   k1server ~k1obs/magiq/lris
+# 2011-Nov-26 MK  Added ttint to exposure setting so that it
+#                 does not default to 0.0
+# 2014-Mar-27 MK  Added binning setting so it preserved 
+#                  the current camera binning. Also added a check
+#                  for the xcenter to skip guide box frames.
+# 
+# 2014-Mar-31 MK  Shui suggested changes to the modify commands.
+#                   Now we only modify cam name and snap an image.
+###################################################################
+
+# define defaults...
+# Set image directory
+modify -s magiq imgdir=/s/nightly2/tonight
+modify -s magiq imgcmd=set
+
+#Aquire valid camera parameters
+set flag = 1
+set count = 0
+while $flag 
+   set count = `math $count + 1` 
+   #show camera parameters
+   set camparms_old = `show -s magiq camparms`
+   #test for validity using width entry
+   set camname = `echo $camparms_old | awk -F, '{print $1}' `
+
+   if ( "$camname" == "camparms = kcwi" ) then    
+     set flag = 0
+    endif    
+   if ( $count >= 50 ) then 
+     set flag = 0        
+   endif    
+  
+end
+
+if ( $count == 50 ) then
+  echo "Error: Offset guider currently not exposing or could not modify keywords. Ask OA to restart MAGIQ server, and if this does not fix the issue, call SWOC."
+  exit
+endif
+
+# Save the current camera parameters
+set exptime_old  = `echo $camparms_old | awk -F, '{print $6}' `
+
+#Set a wait time
+set test = `math $exptime_old x 1.5`
+set test = `printf "%.0f" $test`
+echo $test
+#set calccmd = `echo 'calc "int('$test')"'` 
+#set calccmd = `echo '$test' | printf "%.0f\n"`
+#set dwell = `$calccmd `
+
+#set dwell = $test
+set dwell=$test
+# acquire image(s) using the appropriate command...
+# Set Image saving parameter first
+set mssg = 'Error: Image not acquired. If it fails again, try restarting the magiq server. If it continues to fail, align the mask by imaging the field with LRISDEIMOS (old method). Then call SWOC to fix this issue.'
+set flag = 5
+set frameno = `show -terse -s magiq imgfrnr `
+set setno = `show -terse -s magiq imgsetnr `
+set lastfilename = `( ls -tr1 /s/nightly2/2nite/kcwi*.fits | tail -1 )` 
+
+# Set up the parameters 
+modify -s magiq camname=kcwi
+
+# trigger image save
+modify -s magiq mqsnpff=1
+
+while $flag 
+  #wait for the new image
+  sleep $dwell
+  set framenoTest = `show -terse -s magiq imgfrnr`
+  set setnoTest = `show -terse -s magiq imgsetnr`
+  set nextfilename = `( ls -tr1 /s/nightly2/2nite/kcwiFF*.fits | tail -1 )` 
+  if ( "$lastfilename" != "$nextfilename" ) then 
+     set flag = 0
+     set mssg = 'GUIDER ACQUISITION DONE'
+  else
+     set flag = `math $flag - 1 `
+  endif
+end
+
+echo $mssg
+
+
+

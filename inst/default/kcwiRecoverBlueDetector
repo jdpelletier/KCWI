@@ -1,0 +1,57 @@
+#!/bin/csh -f
+
+echo "You have started the Blue Detector Recovery script."
+echo "This script will do the following."
+echo " - stop and restart the kbds server"
+echo " - stop and restart the keygrabber"
+echo " - stop and restart the image display"
+echo " - stop and restart the sound system"
+echo " - run the kcwiInit script to set the correct directories"
+echo "**********************************************"
+echo " "
+echo " "
+echo " "
+
+printf "Are you sure you want to run this script (y/n) ?"
+set response = "$<"
+if( "$response" != "y") then
+    exit 1
+endif
+
+echo "Restarting the detector server"
+kcwi stop kbds
+sleepdots 5
+kcwi start kbds
+sleepdots 5
+
+echo "Restarting the keygrabber"
+kcwi stop keygrabber
+sleepdots 5
+kcwi start keygrabber
+sleepdots 5
+
+echo "Restarting the image display"
+kcwi stop kcwidisplayb
+sleepdots 5
+set uidisp1 = `uidisp 1`
+kcwi start kcwidisplayb -D $uidisp1
+
+echo "Restarting the sound system"
+kcwi stop soundboard
+kcwi stop eventsounds
+kcwi start soundboard
+set uidisp2 = `uidisp 2`
+kcwi start eventsounds -D $uidisp2
+
+echo "Running init script"
+kcwiInit
+
+
+echo " "
+echo "************************************************************"
+echo "IMPORTANT: Using the web based configuration manager"
+echo "           restore your science configuration BEFORE you take "
+echo "           any science data!"
+echo "Suggestion: take a short exposure or a bias to verify that"
+echo "            the detector server has recovered"
+echo "************************************************************"

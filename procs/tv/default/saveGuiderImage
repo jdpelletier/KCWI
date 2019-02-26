@@ -1,0 +1,49 @@
+#!/bin/csh -f
+#
+#
+# First, take the guider image
+
+takeGuiderImage
+sleep 2
+#
+# 
+set lframeno=`ssh k2obs@k2server show -t -s magiq imgsetnr`
+set imno=`printf "%03i" $lframeno`
+set dr=`readlink -f /s/nightly2/2nite`
+echo $dr
+set yy=`echo $dr | cut -d "/" -f4`
+set mm=`echo $dr | cut -d "/" -f5`
+set dd=`echo $dr | cut -d "/" -f6`
+
+set prefix="kcwiFF"
+set postfix="_0000.fits"
+
+set newdir=`show -t -s kfcs outdir`/magiq/
+set newprefix=km${yy}${mm}${dd}_
+set newpostfix=".fits"
+
+if ( ! -d $newdir ) then
+    echo "Making new directory: $newdir"
+    mkdir $newdir
+endif
+
+set fname=${dr}/${prefix}${imno}${postfix}
+set ct=`ls -ltr ${fname} | wc` >>& /dev/null
+
+if ( $ct[1] != 1 ) then 
+   echo "file not found."
+   exit -1
+endif
+
+set newname=${newdir}${newprefix}${imno}${newpostfix}
+
+echo $fname
+echo $newname
+
+# pass the latest filename to kcwi so that it can be used 
+# in an autodisplay script 
+
+cp $fname $newname
+modify -s kcwi teststr=$newname >> /dev/null
+echo IMNO $imno
+

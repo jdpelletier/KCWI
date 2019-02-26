@@ -1,0 +1,105 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#     setLogLinks - set the links for the current day logs
+#
+# SYNOPSIS
+#	setLogLinks
+#
+# DESCRIPTION
+#       Every time the kcwi servers are started, date coded logs are
+#       started. This script creates generic log links that point
+#       to the date coded logs. Tklogger then uses the log links to
+#       search for error msgs.
+#
+# ARGUMENTS
+#
+# OPTIONS
+#
+# EXAMPLES
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#
+# SCRIPTS CALLED
+#     kcwi stop autodisplay
+#
+# EXIT STATUS
+#     0 - normal exit, no error
+#
+# SEE ALSO
+#
+# Modification History:
+#       2013jan03     MK              Original version
+#       2016jun05     LR              Adapted to KCWI
+#------------------------------------------------------------------------------
+
+
+if ($1 != "") echo Updating the Log Links
+
+set rootdir="${RELDIR}/var/log/"
+set cmd="/usr/bin/ls -c1 "
+
+set subdirs=( "kcwi" "kt1s" "kt2s" "kp1s" "kp2s" "kp3s" "kros" "kcas" "kbgs" "kbvs" "kbds" "kbes" "kbms" "kfcs" "all" "servers" "localservers")
+
+foreach subdir ($subdirs) 
+  #echo "Linking ${subdir} logs"
+  set filecmd="$cmd$rootdir/server/$subdir/*_*.log"
+  set filelist=`$filecmd`
+
+  if  ( $#filelist > 0 ) then
+
+    #full path to the date coded log file
+    set linkfile = "$rootdir/server/$subdir/$subdir.log"
+    set logfile = $filelist[1]
+    #echo $logfile
+    #echo $linkfile
+
+    ln -sf $logfile $linkfile   
+  endif
+end
+
+# scripts
+set subdirs=( "keygrabber" "kcwidisplayb" "kfcdisplay" "watchrot" "magiqdisplay" "kcwiConfManager" "watchdar" "kcwiExposureGui" "kcwiOffsetGui" "kcwiCalibrationGui" "kcwiStatusGui" "eventsounds" "soundboard")
+
+foreach subdir ($subdirs) 
+  #echo "Linking ${subdir} logs"
+  set filecmd="$cmd$rootdir/script/$subdir/*_*.log"
+  set filelist=`$filecmd`
+
+  if  ( $#filelist > 0 ) then
+
+    #full path to the date coded log file
+    set linkfile = "$rootdir/script/$subdir/$subdir.log"
+    set logfile = $filelist[1]
+
+    ln -sf $logfile $linkfile   
+
+
+  endif
+end
+# gui
+set subdirs=( "kdesktop" )
+
+foreach subdir ($subdirs) 
+  #echo "Linking ${subdir} logs"
+  set filecmd="$cmd$rootdir/gui/$subdir/*_*.log"
+  set filelist=`$filecmd`
+
+  if  ( $#filelist > 0 ) then
+
+    #full path to the date coded log file
+    set linkfile = "$rootdir/gui/$subdir/$subdir.log"
+    set logfile = $filelist[1]
+
+    ln -sf $logfile $linkfile   
+
+
+  endif
+  
+end

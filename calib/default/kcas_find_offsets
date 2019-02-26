@@ -1,0 +1,215 @@
+#!/bin/csh
+#+
+# 161025
+# Matuszewski -- matmat@caltech.edu
+#
+# DESCRIPTION
+#    Use the calibration 300 um pinhole to center the calibration
+#    system 0 point at the slicer. 
+#
+#    Prerequisit is that the focal plane camera be initialized.
+# 
+#    Script resets the CALXOFFSET, CALYOFFSET, CALXZERO, and CALYZERO 
+#    KCAS keywords to 0.
+#    The script takes images of the calibration pin300 pinhole and 
+#    attempts to place it within "tolerance" of a predetermined unbinned
+#    camera pixel using kfcs_compute_kcas_offset.py 
+#-
+#
+
+# loop parameters
+set iterlimit=3
+set tolerance=25
+
+# servers used
+set calserver=kcas
+set fpcamserver=kfcs
+set servers=($calserver $fpcamserver)
+
+# script name 
+set scrname=`basename -- $0`
+
+# object
+set object=pin300
+
+# axes used
+set axes=(calx caly calp calm ifu)
+set positions=($object $object sky mirror fpcam)
+
+# focal plane camera keywords used 
+set exptime=5.0
+set sequence=1
+set binning=1
+set outdir=/tmp
+set outfile=offset`date +%y%m%d-%H%M%S`_
+set save=1
+set safe=1
+set stack=0
+set counter=0
+
+set fpckeys=(binning sequence save stack outdir outfile exptime safe counter)
+set fpcvals=($binning $sequence $save $stack $outdir $outfile $exptime $safe $counter)
+
+# Make sure the axes are homed
+foreach axis ($axes)
+    if (! `show -t -s $calserver ${axis}homed` ) then
+	echo "${scrname}: $axis not homed."
+	exit 2
+    endif
+end
+
+# Save the positions 
+set oldpositions=($positions)
+@ ctr=1
+foreach axis ( $axes ) 
+    set oldpos=`show -t -s $calserver ${axis}name`
+    set oldpositions[$ctr]=$oldpos
+    @ ctr++
+end
+
+# Move the axes into position
+@ ctr=1
+foreach axis ($axes) 
+    kcas_movelin $axis $positions[$ctr]
+    if ($status) then
+	echo "${scrname}: $axis move failed"
+	exit 1
+    endif 
+    @ ctr++
+end
+
+# Initialize the camera 
+#fpcaminit
+#if ($status) then 
+#    echo "${scrname}: FPCam initialization failed."
+#    exit 2
+#endif
+
+# save fpc values and change 
+set fpcold=($fpckeys)
+@ ctr=1
+foreach fpckey ($fpckeys)
+    set oldkey=`show -t -s $fpcamserver $fpckey`
+    set fpcold[$ctr]=$oldkey
+    modify -s $fpcamserver $fpckey=$fpcvals[$ctr]
+    sleep 0.3
+    @ ctr++
+end
+
+echo "${scrname}: Turning off lamps."
+kcas_shutter thar close
+kcas_shutter fear close
+kcas_lamp cont off
+sleep 10
+
+################################
+# At this point, we are ready to go. 
+
+# 1. take a dark
+# 2. start loop
+#   a. take an image, compute centroid
+#   b. adjust pointing, check if within tolerance
+#   c. if within tolerance, quit
+#   d. if not within tolerance, try again, unless at iterlimit
+
+goifpc 
+set dark=`show -t -s $fpcamserver lastfile`
+
+kcas_lamp cont on
+sleep 10
+@ tries=0
+set intol=0
+while ( ( $tries < $iterlimit ) && ( ! $intol ) )
+    set offsetx=`show -t -s $calserver calxoffset`
+    set offsety=`show -t -s $calserver calyoffset`
+    goifpc 
+    set lite=`show -t -s $fpcamserver lastfile`
+    set spotinfo=( `kfcs_centroid $lite $dark` )
+    if ($status) then
+	echo "${scrname}: centroiding failed."
+	exit 2
+    endif
+    set cenx=$spotinfo[1]
+    set ceny=$spotinfo[2]
+    set weight=$spotinfo[3]
+    set offsets=( `kfcs_compute_kcas_offset.py $cenx $ceny $tolerance | grep INTOFFSETS` )
+    echo $offsets
+    if ( $#offsets != 5) then
+	echo "${scrname}: offset computation failed."
+	exit 3
+    endif
+    set offsetx=`echo "$offsetx + $offsets[2]" | bc`
+    set offsety=`echo "$offsety + $offsets[3]" | bc`
+    set intol=$offsets[4]
+    set diff=$offsets[5]
+
+    
+    kcas_xyoffset $offsetx $offsety 
+    @ tries++
+end
+    
+    
+
+    if ( ( ! $intol ) ) then
+	echo "${scrname}: Failed to converge."
+	echo "${scrname}: diff = $diff um"
+	echo "${scrname}: resetting offsets from ($offsetx, $offsety)"
+	kcas_xyoffset 0 0 
+    else 
+	set cxzinit=`show -t -s kcas calxzero`
+	set cyzinit=`show -t -s kcas calyzero`
+	set cxznew=`echo " $cxzinit + $offsetx " | bc`
+	set cyznew=`echo " $cyzinit + $offsety " | bc`
+	echo "${scrname}: Computed zero position: ($cxznew, $cyznew)"
+	modify -s kcas calxzero=$cxznew
+	modify -s kcas calyzero=$cyznew
+	kcas_xyoffset 0 0 
+    endif
+    
+show -s kcas calmzero calmoffset calxzero calxoffset calyzero calyoffset
+    
+
+################################
+# Clean up and exit
+
+# turn off the continuum lamp
+kcas_lamp cont off
+
+# return axes to original values
+@ ctr=1
+foreach axis ( $axes ) 
+    kcas_movelin $axis $oldpositions[$ctr]
+    @ ctr++
+end
+
+@ ctr=1
+foreach fpckey ( $fpckeys )
+    modify -s $fpcamserver $fpckey=$fpcold[$ctr]
+    sleep 0.3
+    @ ctr++
+end
+
+
+show -s $calserver calxoffset
+show -s $calserver calyoffset
+
+# Make the directory 
+set kbdsdir=`show -t -s kbds outdir`
+set outdir=${kbdsdir}/aux
+if ( ! -d $outdir) then
+    echo "Making directory $outdir"
+    mkdir $outdir 
+endif
+
+# save the offsets 
+set fname=${outdir}/kcas_offsets-`date -u +%y%m%d-%H%M%S`.sav
+touch $fname
+echo "# `date -u`" >> $fname
+show -s ${calserver} calmzero calxzero calyzero calmoffset calxoffset calyoffset >> $fname
+
+# turn off camera (maybe)
+# fpcamPower off
+
+
+
+echo "Done."

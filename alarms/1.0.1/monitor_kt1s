@@ -1,0 +1,119 @@
+#! /kroot/rel/default/bin/kpython
+    
+import ktl
+import argparse
+import datetime
+
+from KeckAlarm.GenericMonitor import AlarmHandler
+ 
+description = "Alarm handler for KT1S temperature server"
+parser = argparse.ArgumentParser(description=description)
+parser.add_argument('action',help='action to be performed (enable,disable,snooze,status)',\
+                    choices=['enable','disable','snooze','status'],nargs='?')
+parser.add_argument('minutes',help='minutes to snooze for',nargs='?',default=0)
+parser.add_argument('-debug',help='Forces verbose output on screen. Not recommended for cronjobs',action='store_true',required=False, default=False)
+
+
+# Instantiate the class: create the alarm with a name
+Server = AlarmHandler('alive')
+
+# the set temperature comes from a keyword, and at this point we already know 
+# that the service is operational
+Server.whoFrom = 'kcwiblue@caltech'
+Server.whoWarning = 'matmat@caltech.edu; lrizzi@keck.hawaii.edu; neilljd@gmail.com'
+Server.whoInfo = 'matmat@caltech.edu; lrizzi@keck.hawaii.edu; neilljd@gmail.com'
+#Server.whoWarning = 'luca.kilohi@gmail.com'
+#Server.whoInfo = 'luca.kilohi@gmail.com'
+Server.host = 'kcwiserver'
+Server.user = 'kcwirun'
+
+# EMAILS 
+
+# server is not running
+
+Server.serviceNotRunning['subject'] = "Warning: The KT1S service is not running"
+Server.serviceNotRunning['body'] = \
+           """This is an info email that the KT1S server is not running.
+
+           1. Log into kcwiserver as user kcwi
+           2. Type the following command:
+               "ctx" to determine the state of the instrument servers
+           3. Run kcwi restart servers  to restart servers."""
+
+# alarm has been manually disabled, and more than 1 day has passed
+
+Server.alarmsDisabled['subject'] = "Info: The KT1S temperature alarms are currently disabled"
+Server.alarmsDisabled['body'] = \
+            """This is just a friendly reminder that alarms for the KCWI detector 
+            temperatures have been disabled by user request.  This message
+            will be sent out daily until alarms are re-enabled.  Follow
+            these steps to re-enable temperature monitoring:
+
+            1. Log into kcwiserver as user "kcwi"
+            2. Type the following command:
+                monitor_kt1s enable"""
+
+# server is running, but the keyword is not available or has invalid value
+
+Server.missingValue['subject'] = "Warning: no KT1S lastalive keyword"
+Server.missingValue['body'] = \
+            """The KT1S service is not returning valid lastalive keywords.
+            
+            The monitor script will email alarms every 10 minutes until the 
+            situation is corrected or the alarms are disabled."""
+
+# real alarm: the value is out or range
+
+Server.raiseAlarm['subject'] = "WARNING: KT1S lastalive response is not normal"
+Server.raiseAlarm['body'] = \
+            """ The KT1S server lastalive keyword is not normal.
+
+            This message will be sent at 10 minutes intervals until the problem is corrected or the 
+            alarms are disabled."""
+
+# this string is added to the log file afte the date and before the value, as in 
+# <date> <time> <tkloggerString> <keyword=value>
+Server.tkloggerString=" KT1SLastAliveNotNormal lastalive  "
+
+# directory, file names for the logfile and for the status file
+Server.setLogInfo('/kroot/var/log/monitors','kt1s_log','.kt1s_log_status')
+
+# parsing arguments
+args = parser.parse_args()
+if args.action:
+    Server.action(args.action, args.minutes)
+if args.debug:
+    Server.debug = True
+
+# is the alarm enable, disables, snoozed?
+Server.checkStatus()
+
+# setup communication with the server
+Server.setAndCheckService('kt1s')
+
+# define the expected value reading from a keyword
+#import ktl
+#kt1s = ktl.cache('kt1s')
+#setTemp = float(kt1s['trgtmp1'].read())
+#Server.targetValue = setTemp
+
+# other option: setup expected value manually
+# for lastalive servers, use the current date
+# Specify the format for the last alive keyword here:
+# show -s kt1s lastalive returns: lastalive = 16/07/22,11:29:20
+Server.keywordDateFormat = "%y/%m/%d,%H:%M:%S"
+Server.targetValue = datetime.datetime.now().strftime(Server.keywordDateFormat)
+
+# valid range ( no need to specify for "alive" monitors)
+Server.minValue = ""
+Server.maxValue = ""
+
+# keyword to monitor
+Server.valueKeyword = 'lastalive'
+
+# if keyword cannot be read for longer than this time, send out a warning (minutes)
+Server.maxDelay = 10
+
+# main program
+Server.mainCheck()
+

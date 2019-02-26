@@ -1,0 +1,76 @@
+#!/bin/csh -f
+#+
+#KCWI library of scripts
+#
+#NAME
+#       pxy -- move telescope in pixel coordinates of the KCWI detector
+#
+#SYNOPSIS
+#	pxy x y
+#
+# DESCRIPTION
+#	Move the telescope a given number of pixels in the "x" and "y"
+#	directions as defined by the KCWI detector.
+# 
+# Arguments:
+#	x = offset in the direction parallel with CCD rows [pixels]
+#	y = offset in the direction parallel with CCD columns [pixels]
+# 
+#OPTIONS
+#       NONE
+#
+# EXAMPLES:
+#	1) Move the telescope 100 pixels in "x" and -200 in "y":
+#		pxy 100 -200
+#	Note that since this is a *telescope* move, the target will
+#	"move" in the OPPOSITE direction!
+#
+# #ENVIRONMENT VARIABLES
+#     list of environment variables used
+#
+#FILES
+#     list of files used
+#
+#SERVERS & KEYWORDS
+#     
+#     service = kcwi
+#          keywords: sfilter/ifilter, sscale
+#
+#SCRIPTS CALLED
+#
+#     help, syncheck
+#
+#EXIT STATUS:
+#	0 = normal completion
+#	1 = wrong number of arguments
+#	2 = arguments not floating point
+#
+#-
+# Modification history:
+#	Date unknown	RWG	Original version
+#	2000-Jul-05	GDW	Added documentation
+#-----------------------------------------------------------------------
+
+# check args...
+if ( $#argv != 2 ) then
+  echo "Usage: pxy x y"
+  exit 1
+endif
+
+
+# verify floating-point values...
+is_float $* > /dev/null
+if ( $status ) then
+  echo "ERROR -- Argument must be valid floating-point numbers"
+  exit 2
+endif
+
+# set scale...
+set pscale = `show -s kcwi -terse pscale`
+
+# convert pixels to arcsec...
+set dx = `calc "$pscale * $1"`
+set dy = `calc "$pscale * $2"`
+
+# make move...
+mxy $dx $dy

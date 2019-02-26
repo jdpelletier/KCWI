@@ -1,0 +1,42 @@
+#!/bin/tcsh
+#
+# 161017
+# Matuszewski -- matmat@caltech.edu
+#
+# Execute kfcs_centroid.py and print the fwhm of the resulting spot
+# Used mainly for focusing 
+#
+# Usage: 
+#     kfcs_fwhm spot_filename dark_filename
+#
+# Note that this isn't particularly robust at the moment.
+#
+# Check for proper number of parameters
+if ( $# != 2 ) then
+    exit -1
+endif
+
+
+# run the python code
+set res= ( `kfcs_centroid.py $1 $2 25.0 | grep FWHM` )
+set sv_status=$status
+if ( $sv_status  ) then
+    echo "Exiting with $sv_status" >> /dev/stderr
+    exit $sv_status
+endif
+
+if ( $#res != 4) then
+    exit -2
+endif
+
+set xfwhm = $res[2]
+set yfwhm = $res[3]
+set bfwhm = $res[4]
+
+echo $xfwhm $yfwhm $bfwhm
+
+exit 0
+### 
+
+
+

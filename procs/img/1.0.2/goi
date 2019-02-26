@@ -1,0 +1,141 @@
+#!/bin/csh -f
+#+
+# kgoi -- acquire KCWI image(s)
+#
+# Purpose:
+#	Take one or more images with the LRIS BLUE and RED camera, using the
+#	current instrument settings
+#
+# Usage:
+#	goi [-nowait] [-dark] [nexp]
+# 
+# Arguments:
+#	-nowait = return before readout of last image in loop
+#	 nexp   = number of exposure to take (default=1)
+# 
+# Output:
+#	Text feeback is sent to the terminal.
+# 
+# Exit values:
+#	 0 = normal completion
+#	 1 = wrong number of arguments
+#	 2 = error during exposure
+#
+# Example:
+#	1) Take a single exposure 
+#		goi
+#
+#	2) Take 10 dark exposures 
+#		goi -dark 10
+#
+#	3) Take 10 exposures and exit when the final one
+#	begins to readout:
+#		goi -nowait 10
+#
+#-
+# Modification history:
+#	2015-Jul-24	LR	Original version
+#-----------------------------------------------------------------------
+
+# define defaults...
+@ nexp = 1
+set nowait = 0
+set autoshut = 1
+set msg = ""
+set stat = 0
+
+# flag check...
+while (1)
+
+   # check optional argument...
+   if ( "$1" == "-nowait" ) then
+	set nowait = 1
+	shift
+	continue
+   endif
+
+   # check optional argument...
+   if ( "$1" == "-dark" ) then
+	set autoshut = 0
+	set msg = "DARK "
+	shift
+	continue
+   endif
+
+   break
+end
+
+# parse arguments...
+if ( $#argv > 1 ) then
+ echo "  Usage: kgoi [-nowait] [nexp]"
+ echo "  where the default value of nexp is $nexp"
+ exit 1
+endif
+if ( $#argv >= 1 ) @ nexp = $1
+
+# type out the starting time for benefit of the user...
+date
+
+# save current shutter mode for later restoration...
+set autoshut_old = `show -s kbds -terse autoshut`
+
+modify -s kbds silent autoshut=$autoshut
+
+onintr last
+
+# loop over number of exposures...
+@ n=1
+while ( $n <= $nexp )
+
+   # ensure no exposure is in progress...
+   waitfor -s kbds exposip=0 >>& /dev/null
+   waitfor -s kbds rdoutip=0 >>& /dev/null   
+
+   # print message...
+   set frame = `nextimage -tail`
+   set object = `object`  
+   printf "  %sExposure %d/%d image=%s/%s object=%s\n" \
+	"$msg" $n $nexp $frame "$object"
+
+   # begin exposure...
+   printf "  Exposing ..."
+   modify -s kbds silent startex=1
+   if ( $status ) then
+	printf "ERROR trying to start exposure\n"
+	set stat = 1
+	break
+   endif
+
+   # wait for end of exposure...
+   waitfor -s kbds exposip=0 >>& /dev/null
+   printf "reading out..."
+   waitfor -s kbds rdoutip=0 >>& /dev/null
+
+   if ( $nowait && $n == $nexp ) then
+	printf "done (last read skipped).\n"
+	break
+   endif
+   sleep 3
+   waitfor -s kbds     -t 200 exposip=0 >>& /dev/null
+   waitfor -s kbds     -t 200 rdoutip=0 >>& /dev/null
+
+   printf "done.\n"
+
+   # increment counter...
+   @ n++
+
+end   
+
+last:
+
+# abort exposures on failure...
+if ( $stat != 0 ) then
+   printf "Aborting exposures\n"
+   modify -s kbds abortex=1
+endif
+modify -s kbds     silent autoshut=$autoshut_old
+
+if ( $stat == 0 ) then
+   printf "  Exposure sequence completed.\n"
+endif
+exit $stat

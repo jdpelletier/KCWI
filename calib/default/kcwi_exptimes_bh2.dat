@@ -1,0 +1,10 @@
+# BH2 Grating exposure times
+# Wave	     cont     fear	thar	dome
+3950	     4	      40	50	75
+4100	     3	      30	45	75
+4400	     3	      25	40	75
+4600	     3	      25	40	75
+4750	     3.5      20	30	75
+4850	     4	      20	30	75
+
+

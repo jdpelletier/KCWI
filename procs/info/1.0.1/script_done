@@ -1,0 +1,86 @@
+#!/bin/csh -f
+#+
+# MOSFIRE library of scripts
+#
+# NAME
+#	script_done -- notify observer that a script has finished
+#
+# SYNOPSIS
+#	script_done [host [sound [message]]]
+#
+# DESCRIPTION
+#	Play audio message and display a popup window to warn that
+#	something has happened.
+#     Side effects:
+#	- an audio message is sent to the specified host
+#	- an informational window is raised on the current display
+#     Restrictions:
+#	- DISPLAY must be set to receive window
+#	- In order for audio to play, the specified sound host must have a sound card
+#	and speaker, and the same account executing this script must be logged into
+#	the console on the host
+#
+# ARGUMENTS
+#	host = host on which to play the sound [default = "hanauma"]
+#	sound = name of the sound file to play [default = "rooster"]
+#	message = text message to display [default = "Your script just finished"]
+#
+# OPTIONS
+#
+# EXAMPLES
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#
+# SCRIPTS CALLED
+#
+# EXIT STATUS
+#	 0 = normal completion
+#	 1 = wrong number of arguments
+#
+# SEE ALSO
+#
+# Modification history:
+#	2002-Aug-12	GDW	Original version
+#       2012-Mar-01     MK	Modified for use with MOSFIRE
+#-----------------------------------------------------------------------
+
+set buf = $0
+set cmd = $buf:t
+set usage = "Usage: $cmd"
+
+# set defaults...
+set host = hanauma
+set sound = rooster
+set message = "Your script just finished"
+
+# parse args...
+if ( $#argv >= 1 ) then
+    set host = $1
+    shift
+endif
+
+if ( $#argv >= 1 ) then
+    set sound = $1
+    shift
+endif
+
+if ( $#argv >= 1 ) then
+    set message = $*
+    shift
+endif
+
+# make sound...
+set sound_dir = /home/mosfire/sounds
+set sound_file = $sound_dir/${sound}.au
+rsh $host audioplay -v 65 $sound_file
+
+# raise window...
+if ( $?DISPLAY ) then
+    echo "$message" | tkmessage -type info
+else
+    printf "ERROR: DISPLAY not set\n"
+endif

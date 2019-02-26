@@ -1,0 +1,92 @@
+#!/bin/csh -f
+#+
+#KCWI library of scripts
+#
+#NAME
+#     slcmov -- move object along the slicer direction in arcsec
+#
+#SYNOPSIS
+#     slcmov y 
+#
+#DESCRIPTION
+#	Move the telescope the given number of arcseconds along the
+#	slicer.  A positive value will "move" the object "down" (i.e., to
+#	a smaller y pixel value).
+#
+#ARGUMENTS
+#       y - number of arcsec to offset object.
+#      
+#OPTIONS
+#
+#EXAMPLES
+#     slcmov 10 
+#          moves object 10 arcsec in y to more positive y values
+#
+#ENVIRONMENT VARIABLES
+#     #
+#FILES
+#     #
+#SERVERS & KEYWORDS
+#
+#SCRIPTS CALLED
+#     list of the scripts called by this script, for example:
+#
+#     help, syncheck, mxy
+#
+#EXIT STATUS
+#     0 - normal exit, no error
+#     1 - script aborted by an interrupt
+#     2 - syncheck error
+#     3 - error parsing command line input
+#     other errors...
+#
+#SEE ALSO
+#     
+#-
+#
+# Modification History:
+# 20110411    MK  Original Version
+# 2012apr30   MK  Added a note indicating the angle was updated
+# 2012nov30   MK  Documented direction of the move in the text
+#                  and in the usage.
+#
+
+# Boiler plate for "-h" support for command autohelp.
+
+if ("$1" == "-h") then
+    help $0 | more
+    exit $status
+endif
+
+set cmd = `basename $0`
+
+# End of help/syncheck boiler plate.
+
+# Set default variable values
+#KCWI slicer angle with respect to y pixels on the detector
+# this will depent on rotator angle for KCWI
+set angle  = -3.74
+
+# check args...
+if (${#argv} != 1) then  
+  echo "Usage: slcmov y  (+ will move object down to smaller y values)"
+  exit 1
+endif
+
+# verify floating-point values...
+is_float $* > /dev/null
+if ( $status ) then
+  echo "ERROR -- Argument must be valid floating-point number"
+  exit 2
+endif
+
+# invert the move and calculate offsets for inst x and y
+#set dx = `calc "$1 * sind($angle)"`
+#set dy = `calc "-1*$1 * cosd($angle)"`
+set distance = $1
+set dx = `calc "$distance * sind($angle)"`
+set dy = `calc "$distance * cosd($angle)"`
+
+# make move...
+echo "[$cmd] move command is: mxy $dx $dy"
+exec mxy $dx $dy

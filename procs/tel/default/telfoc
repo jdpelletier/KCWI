@@ -1,0 +1,61 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#       telfoc -- set/show the telescope secondary position
+#
+# SYNOPSIS
+#	telfoc [x]
+# 
+# DESCRIPTION
+#	With no arguments, show the current position of the telescope
+#	secondary.  With one argument, reset the telescope secondary
+#	to the given position.
+#
+# ARGUMENTS
+#	x = new value for telescope secondary position
+# 
+# OPTIONS
+#
+# EXAMPLES
+#	
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#     dcs: telfocus, secfocus
+#
+# SCRIPTS CALLED
+#
+# EXIT STATUS
+#	 0 = normal completion
+#	 1 = wrong number of arguments
+#
+# Modification history:
+#	2011apr27	MK	Original version
+#-------------------------------------------------------------
+
+# check args...
+if (${#argv} > 1) then
+  echo "Usage: telfoc [x]"
+  exit 1
+endif
+
+# verify floating-point values...
+is_float $* > /dev/null
+if ( $status ) then
+  echo "ERROR -- Argument must be valid floating-point numbers"
+  exit 2
+endif
+
+# set/show value...
+if ( $#argv == 0 ) then
+  show -s dcs -terse telfocus
+else
+  modify -s dcs telfocus=$1 secmove=1
+  sleep 2
+  waitfor -s dcs secmove=0 -timeout 30
+endif

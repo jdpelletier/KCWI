@@ -1,0 +1,134 @@
+#!/bin/csh 
+#
+# 161123
+# Matuszewski -- matmat@caltech.edu
+#
+# Take and analyze a through-focus curve, returning the best focus position
+# for the KCWI blue detector. This script uses continuum bars. 
+# 
+# Some assumptions that are made:
+# 1. The blue detector is near focus. 
+# 2. The calibration system is focused on the focal plane camera 
+# 3. Assumes that the spatial and spectral KCWI blue foci are close (they are)
+
+
+set focrange=0.2
+set focstep=0.05
+
+# A. Set up the logfile names
+set logroot=`date +%y%m%d-%H%M%S`
+set logfile="/tmp/kcwi-focus-${logroot}.log"
+set imfile=$1
+touch $logfile
+touch $imfile 
+echo "Logfile is: $logfile"
+echo "Imfile is: $imfile"
+
+
+# B. Check that the required servers are running
+
+set servers=(kbms kbds kcas)
+foreach server ( $servers ) 
+if (! `kcwiCheckServer $server` ) then
+    echo "Server $server not running. Exiting." >>& /dev/stderr
+    exit 1
+endif 
+
+# C. Configure calibration system 
+# axes to be saved and restored later)
+set calaxes=(calm calp)
+set newcalpositions=(mirror sky)
+set oldcalpositions=($newcalpositions)
+echo $newcalpositions[1]
+echo $newcalpositions[2]
+@ ctr = 1
+foreach calaxis ($calaxes)
+    set curpos=`show -t -s kcas ${calaxis}name`
+   set oldcalpositions[$ctr]=$curpos
+   kcas_movelin $calaxis $newcalpositions[$ctr]
+   @ ctr ++
+end
+
+kcas_shutter thar close 
+kcas_shutter fear close 
+kcas_lamp cont on
+
+# Determine the binning 
+
+set binning=`show -t -s kbds binning`
+set biny=`echo $binning | cut -f2 -d ","`
+echo $biny
+if ( $biny == 1 ) then 
+    kcas_object finbars
+else 
+    kcas_object medbarsa
+endif 
+
+# C. -------------------------------------------
+echo "here."
+
+
+# D. Configure detector, save old values
+# The exposure time is dummy here, for now
+set kbdskeys=( ttime object ampmode gainmul ccdmode)
+set kbdsvals=( 10    focus  10      10      1 )
+set kbdsoldvals=($kbdsvals)
+
+@ ctr=1
+foreach key ( $kbdskeys )
+   set kbdsoldvals[$ctr]=`show -t -s kbds $key`
+   modify -s kbds $key=$kbdsvals[$ctr]
+   @ ctr++
+end
+
+# Determine the necessary exposure time 
+set statefile=/tmp/${logroot}.state
+set calfile=/tmp/${logroot}.cal
+save_state $statefile
+kcas_make_calfile.sh $statefile
+set barline=(`grep Bars $calfile`)
+set ttime=$barline[3]
+
+modify -s kbds ttime=$ttime
+# D. --------------------------------------------
+
+# E. Determine current focus 
+set startfocus=`show -t -s kbms focmm`
+
+set focmin=` echo " $startfocus - $focrange " | bc -l`
+set focmax=` echo " $startfocus + $focrange " | bc -l`
+
+set foci=`seq $focmin $focstep $focmax`
+
+set im=""
+
+foreach focus ( $foci )
+   focusb $focus
+   sleep 5
+   goib 
+   set dat=`date +%y%m%d-%H%M%S`
+   set imno=`show -t -s kbds lframeno`
+   set lframe=`show -t -s kbds loutfile`
+   set focpos=`show -t -s kbms focmm`
+   echo "DATA: $focpos $imno $lframe $dat"
+   echo "$focpos $imno $lframe $dat" >> $logfile
+   set im=( $im $lframe)
+end
+    echo $im >> $imfile
+    echo "IMFILE $imfile"
+# W. Restore detector settings 
+@ ctr = 1
+foreach key ( $kbdskeys )
+   modify -s kbds $key=$kbdsoldvals[$ctr]
+   @ ctr++
+end
+
+
+# X. Put calibration system axes back 
+@ ctr=1
+foreach calaxis ( $calaxes ) 
+   kcas_movelin $calaxis $oldcalpositions[$ctr]
+   @ ctr++
+end
+kcas_lamp cont off
+kcas_object dark

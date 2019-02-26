@@ -1,0 +1,108 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#	disks -- print out a listing of available data disks
+#
+# SYNOPSIS
+#	disks [-n]
+#
+# DESCRIPTION
+#   Prints out a list of data disks attached to the instrument computer, 
+#   sorted by their available disk space.
+#	Results written to stdout
+#
+# ARGUMENTS
+#	-n = do not print header
+#
+# OPTIONS
+#
+# EXAMPLES
+#	1) List currently available data disks on punaluu:
+#
+#		disks
+#
+#	   The following sample output is received:
+#	
+#		Data disks available on punaluu, ordered by available space:
+#
+#		                  kbytes   Fraction
+#		Disk              avail.     used
+#		-----------------------------------
+#		/sdata220       13897104    (21%)
+#		/sdata222        7897104    (50%)
+#		/sdata221          97104    (99%)
+# 
+# 	2) List currently available data disks on punaluu without
+#	   header information:
+#	
+#		disks -n
+#
+#	   The following sample output is received:
+#	
+#		/sdata220       13897104    (21%)
+#		/sdata222        7897104    (50%)
+#		/sdata221          97104    (99%)
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#
+# SCRIPTS CALLED
+#
+# EXIT STATUS
+#	 0 = normal completion
+#	 1 = wrong number of arguments
+# SEE ALSO
+#-
+#
+# Modification History:
+#	Date unknown	RWG	Original version
+#	2000-Oct-18	GDW	-Added documentation
+#				-Added "-n" flag
+#	2002-Oct-18	GDW	Changes to support /sdata
+#       2011-Feb-29   	MK	Modified for use with MOSFIRE
+#	2014-Sep-03	JDN	Modified for use with KCWI
+#
+#-----------------------------------------------------------------------
+
+# verify args...
+if ( $#argv > 1 ) then
+  set buf = $0
+  set cmd = $buf:t
+  echo "Usage: $cmd"
+  exit 1
+endif
+
+# use "rsh" if needed to run remotely on instrument host...
+set computer = kcwiserver
+set hostname = `hostname | sed 's/\..*$//'`
+if ( "$hostname" != "$computer" ) then
+    set cmd = "rsh $computer"
+else
+    set cmd = ""
+endif
+
+# print optional header...
+if ( "$1" != "-n" ) then
+
+cat<<EOF
+Data disks available on $computer, ordered by available space:
+
+                  kbytes   Fraction
+Disk              avail.     used
+-----------------------------------
+EOF
+
+endif
+
+# generate list...
+$cmd /bin/df -lk | awk '/sdata130.$/{printf "%s %14d    (%s)\n",$6,$4,$5}' \
+    | /bin/sort -nr -k 2
+
+
+
+

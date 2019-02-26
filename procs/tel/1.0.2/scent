@@ -1,0 +1,136 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#	scent - move the object to the slicer center
+#
+# SYNOPSIS
+#	scent [-r] x y
+# 
+# DESCRIPTION
+#	Offsets the telescope so that an object at pixel (x,y) moves to the
+#	center of the slicer.  
+#
+# ARGUMENTS
+#	x: column location of the target on MOSFIRE image
+#	y: row location of the target on MOSFIRE image
+#
+# OPTIONS
+#	-r: reverse move; move target from slicer center to given (x,y)
+#
+# EXAMPLES
+#	1) Move telescope such that target currently at x=10 y=30 
+#	on MOSFIRE image will appear at slicer center:
+#		scent 10 30
+#
+#	1) Move telescope such that target currently at slicer center
+#	will appear at x=1024 y=512 on MOSFIRE image:
+#		scent -r 1024 512
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#
+# SCRIPTS CALLED
+#       mov
+#
+# EXIT STATUS
+#	0 = normal completion
+#
+# NOTES:
+#	- Slicer center position is hardcoded.
+#	- Slicer center measured using images of the slicer
+#	- Data mosfire9/2012may09 images numbers 2 & 3
+#
+# Modification history:
+#	2011apr27	MK	Original version
+#       2012may9        MK      Updated with slit center position
+#	2013-Jun-21	GDW	Added -r option for Desert
+#-------------------------------------------------------------
+
+set cmd = `basename $0`
+
+# parse flags...
+while ( $#argv > 0 )
+
+    # check for -(r)everse flag...
+    if ( "$1" =~ \-r* ) then
+	printf "[$cmd] REVERSE move requested\n"
+        set reverse
+        shift
+        continue
+    endif
+
+    # check for -(d)ebug flag...
+    if ( "$1" =~ \-d* ) then
+        set debug
+        shift
+        continue
+    endif
+
+    # check for -(h)elp flag...
+    if ( "$1" =~ \-h* ) then
+	help $0
+	exit $status
+    endif
+
+    # check for invalid flag...
+    if ( "$1" =~ \-* ) then
+        printf "[$cmd] ERROR: invalid option $1 -- abort!\n\a"
+        exit 1
+    endif
+
+    # exit flag check if no flags remain...
+    break
+
+end
+
+# Boilerplate for syncheck.
+# Note that the boiler plate should be transparent for all usages,
+# but to make correct use of syncheck you will need to specify the
+# correct pattern.
+
+set noglob
+set CheckStatus = `syncheck -command $0 $* -pattern float float` 
+unset noglob
+
+if ("$CheckStatus" != "OK") then
+    help $0
+    exit 1
+endif
+
+# End of help/syncheck boiler plate.
+
+# verify floating-point values...
+is_float $* > /dev/null
+if ( $status ) then
+  printf "[$cmd] ERROR: Arguments must be valid floating-point numbers -- abort!\n\a"
+  exit 2
+endif
+
+# target position (or destination) from command-line args...
+set Xtarg = $1
+set Ytarg = $2
+
+# slicer center is hardcoded...
+set Xslice = 1042.83
+set Yslice = 1051
+
+printf "[$cmd] Using a slicer center of $Xslice $Yslice\n"
+
+# build appropriate command (check for reverse move)...
+if ( $?reverse ) then
+    set command = "mov $Xslice $Yslice $Xtarg $Ytarg"
+else 
+    set command = "mov $Xtarg $Ytarg $Xslice $Yslice"
+endif
+
+# execute or echo command...
+if ( $?debug ) then
+    echo $command
+else
+    eval $command
+endif

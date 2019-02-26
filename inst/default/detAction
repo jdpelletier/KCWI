@@ -1,0 +1,72 @@
+#!/bin/sh
+
+PARAMDEFINITION="\
+ABORTEX,int,,0,0:1,Abort Exposure\n\
+PAUSEEX,int,,0,0:1,Pause Exposure\n\
+SHUFFLE,int,,0,0:2,Shuffle Charge (0-noop, 1-down, 2-up)\n\
+STARTEX,int,,0,0:1,Start Normal Exposure\n\
+STARTNSX,int,,0,0:1,Start Nod-and-Shuffle Exposure\n\
+STOPEX,int,,0,0:1,Stop Exposure\n\
+"
+
+
+reportStatus()
+{
+	echo "EXECSTATUS=$1"
+	shift
+	echo 'STATUSMSG="'$*'"'
+}
+
+handleQueryParam()
+{
+	for p in $* 
+	do
+		case $p in
+		queryparam*) 
+			reportStatus OK Listing script parameters
+			/bin/echo -e "$PARAMDEFINITION"
+			exit 0
+			;;
+		esac
+		shift
+	done
+}
+
+checkParameters()
+{
+	# Check input
+	if [ $# != 1 ]
+	then
+		reportStatus ERROR Only one detector action can be performed at a time
+		exit 0
+	fi
+
+	COMMAND=`echo $* | sed -e "s/'//g"`
+	export COMMAND
+}
+
+performAction()
+{
+	# Set action param
+	modify -s kbds $COMMAND
+	return $?
+
+}
+
+# ***********************************************************
+# Main part
+# ***********************************************************
+
+handleQueryParam $*
+
+checkParameters $*
+
+OUTPUT=`performAction`
+
+if [ $? != 0 ]
+then
+	reportStatus ERROR Something went wrong
+else
+	reportStatus OK Performing detector action
+fi
+echo "$OUTPUT"

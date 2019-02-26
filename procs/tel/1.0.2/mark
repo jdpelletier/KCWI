@@ -1,0 +1,81 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#       mark - stores current ra and dec offsets
+#
+# SYNOPSIS
+#	mark
+# 
+# DESCRIPTION
+#       stores the current ra and dec offsets for later use. 
+#       Values stored in the mosfire keywords: raoffset and decoffset
+#       See also gomark
+#
+# ARGUMENTS
+# 
+# OPTIONS
+#
+# EXAMPLES
+#	gomark
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#    server: kcwi, dcs
+#      keywords: raoffset, decoffset, raoff, decoff
+#
+# SCRIPTS CALLED
+#
+# EXIT STATUS
+#	0 = normal completion
+#
+# Modification history:
+#	2011apr27	MK	Original version
+#-------------------------------------------------------------
+
+
+# Boiler plate for "-h" support for command autohelp.
+
+if ("$1" == "-h") then
+    help $0
+    exit $status
+endif
+
+# Boilerplate for syncheck.
+# Note that the boiler plate should be transparent for all usages,
+# but to make correct use of syncheck you will need to specify the
+# correct pattern.
+
+ set noglob
+ set CheckStatus = `syncheck -command $0 $* -pattern  ` 
+ unset noglob
+
+if ("$CheckStatus" != "OK") then
+    help $0
+    exit 1
+endif
+
+# End of help/syncheck boiler plate.
+
+
+# The only DCS keywords with enough precision are the raw (binary) versions.
+# These are, alas, in radians.
+
+set raoffset = `show -s dcs -terse -binary raoff`
+set decoffset = `show -s dcs -terse -binary decoff`
+
+set raoffset  = `math $raoffset x 180 x 3600 / 3.1415926536`
+set decoffset = `math $decoffset x 180 x 3600 / 3.1415926536`
+
+# There is a bug in DCS where the value of RAOFF read back has been
+# divided by cos(Dec).  We correct for that error here.
+
+set dec = `show -s dcs -terse -binary dec`
+set raoffset = `math "$raoffset x c($dec)"`
+
+modify -s kcwi RAOFFSET  = $raoffset
+modify -s kcwi DECOFFSET = $decoffset

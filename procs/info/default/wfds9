@@ -1,0 +1,103 @@
+#!/bin/env bash
+#+
+# wfds9 -- wait for ds9 to respond
+#
+# Purpose:
+#	Test for existence of a ds9 window on the current display.
+#	If found, return immediately.  If not found, wait a moment
+#	and test again until the desired timeout is reached.
+#
+# Usage:
+#	wfds9 [-D] [-t nsec] [-n name]
+#
+# Options:
+#	-D = debug mode; print debugging output
+#	-t = use timeout of nsec seconds [default=no timeout]
+#	-n = name of ds9 to test [default="Autodisplay"]
+# 
+# Output:
+#	to stdout (if -D is enabled)
+# 
+# Restrictions:
+#	DISPLAY envar must be set
+# 
+# Exit values:
+#	 0 = normal completion
+#	 1 = wrong number of arguments
+#
+# Example:
+#	1) wait for response from default ds9:
+#		wfds9
+#
+#	2) wait up to 60 sec for response from ds9 named "foo":
+#		wfds9 -t 60 -n foo
+#
+#-
+# Modification history:
+#	2014-Feb-09	GDW	Original version
+#-----------------------------------------------------------------------
+
+cmd=`basename $0`
+usage="Usage: $cmd [-t nsec] [-n name]"
+name="Autodisplay"
+
+mylog()
+{
+    if [ $debug ]
+    then
+	echo $1
+    fi
+}
+
+# check for command-line flags...
+while getopts t:n:D flag
+do case "$flag" in
+	D) debug=1;;
+	t) nsec="$OPTARG";;
+	n) name="$OPTARG";;
+	\?) printf "$usage\n\a" && exit 1;;
+    esac
+done
+
+# remove the options from the command line arg list...
+shift `echo $OPTIND-1 | bc`
+
+# verify that we have the correct number of remaining args...
+# (NOTE: $# is the number of args)
+if [ $# -ne 0 ]; then
+    printf "$usage\n\a"
+    exit 1
+fi
+
+# loop until success or timeout...
+start=`date +"%s"`
+while :
+do
+    # try to contact ds9...
+    /usr/local/bin/xpaget $name 1>/dev/null 2>&1
+
+    # check result...
+    if [ $? = 0 ]
+    then
+	mylog "Successfully communicated with ds9 $name"
+	break
+    fi
+
+    mylog "Failed to communicate with ds9 $name"
+
+    # if a timeout was selected, check elapsed time...
+    if [ $nsec ]
+    then
+	now=`date +"%s"`
+	elapsed=`calc $now - $start`
+	mylog "Elapsed time is $elapsed (timeout is $nsec)"
+	if [ $elapsed -ge $nsec ]
+	then
+	    mylog "Exceeded timeout"
+	    exit 1
+	fi
+    fi
+
+    sleep 1
+done
+

@@ -1,0 +1,960 @@
+#!/usr/bin/perl -w
+#+
+# testAll -- check functionality of all KCWI systems
+#
+# Purpose:
+#	Test all of the KCWI systems to determine whether they are
+#	working properly.  The following checks are made:
+#	- Check that all devices are pingable
+#	- Check that all servers are running
+#	- Check that daemons are alive
+#	- Check that AC power is on to all stages (except lamps, 
+#		which should be OFF)
+#	- Check that all stages are reporting OK and not locked
+#	- Check critical environment settings
+#
+# Usage:
+#	testAll [-h] [-m] [systems]
+# 
+# Arguments:
+#	systems = [computers servers apps keywords power stages]
+#		Systems which should be tested.  Defeault is all of them.
+# 
+# Options:
+#	-h = print help
+#	-m = pass output to less
+#
+# Output:
+#	Report written to stdout
+# 
+# Exit values:
+#	 0 = normal completion
+#	<0 = warnings but no errors
+#	>0 = error
+#
+# Example:
+#	1) To check instrument status:
+#		testAll
+#
+# Nominal output:
+#-
+# Modification history:
+#	2012-Jun-28	GDW	Original MOSFIRE version
+#       2012-Oct-08     MK      Added Ignore statements where systems did not need 
+#                               to be running normally during afternoon checkout.
+#       2016-apr-11     MK      Updated CCR speed checks values and made
+#                                 them a range.
+#       2016-jul-13     LR      Adapted to KCWI
+#       2018-dec-10	ECC	Add stmt to visually check glycol flow
+#-----------------------------------------------------------------------
+
+use strict;
+use Getopt::Std;
+$| = 1;
+
+# misc definitions...
+$X::instrument = 'KCWI';
+#$X::default = 'DEFAULT';
+($X::good, $X::warning, $X::error) = ("OK", "WARNING!", "ERROR!");
+
+my( $n_errors) = 0; # number of errors
+my( $n_warnings) = 0; # number of errors
+my( $key, $value);
+my( $type, $pid);
+my( $server_name);
+my( $computer);
+my( @command);
+my( $system);
+my( $command);
+my( $state, $message);
+our( %options);
+
+# define all possible systems to test...
+my( @systems) = qw( computers servers power settings apps daemons stages);
+
+# define usage...
+my $cmd   = `basename $0`; chomp( $cmd);
+my $usage = "Usage: $cmd [" . join( " ", @systems) . "]";
+
+# parse flags...
+getopts('hm', \%options);
+die "$usage\n" if $options{'h'};
+exec "$0 | less" if $options{'m'};
+
+# default state for each system is "off"...
+my( %check);
+foreach $system ( @systems ) {
+  $check{$system} = 0
+}
+
+# default: if no args are specified, check all systems EXCEPT dispatchers...
+if ( @ARGV < 1 ) {
+  foreach $system ( @systems ) {
+    $check{$system} = 1 if $system !~ /apps/;
+  }
+}
+
+# if args are specified, turn on certain systems...
+while ( $#ARGV >= 0 ) {
+
+  $system = shift;
+
+  if( defined( $check{$system})){
+    $check{$system} = 1 
+  } else {
+    die "$usage\n"
+  }
+}
+
+# verify host...
+my( $goodhost) ='kcwiserver';
+my( $testhost) ='kcwibuild';
+if( $ENV{'HOST'} ne $goodhost && $ENV{'HOST'} ne $testhost ){
+  die "ERROR: you can only run $cmd on $goodhost or on $testhost\n"
+}
+
+#----------------------------------------
+# Check computers
+#----------------------------------------
+if ( $check{"computers"} ) {
+
+  # see whether programs are running...
+  printf "Checking $X::instrument computers:\n";
+
+  my( %computer_description);
+
+  $computer_description{'kcwitarg'} = 'detector target';
+  $computer_description{'kcwiserver'}    = 'main server';
+  $computer_description{'bexgalil'}   = 'blue exchanger Galil';
+  $computer_description{'bmsgalil'}   = 'blue mechanisms Galil';
+  $computer_description{'calgalil'}   = 'calibration unit Galil';
+  $computer_description{'rotgalil'}   = 'rotator Galil';
+  $computer_description{'lantronix'}   = 'Lantronix terminal server';
+  $computer_description{'eaton'}   = 'AC power controller 1';
+  $computer_description{'eaton2'}   = 'AC power controller 2';
+  $computer_description{'eaton3'}   = 'AC power controller 3';
+  $computer_description{'lakeshore'}   = 'Lakeshore unit';
+#  $computer_description{'puunoa'}   = 'hot spare for mosfireserver';
+
+  foreach $computer ( sort keys %computer_description){
+    print &labelize("Checking $computer");
+    if( system( "ping -c 1 -t 1 $computer >/dev/null") == 0){
+      print "$X::good (" . $computer_description{$computer} . ")\n"
+    } else {
+      print "$X::error (" . $computer_description{$computer} . ")\n";
+      $n_errors++;
+    }
+  }
+}
+
+#----------------------------------------
+# Check servers
+#----------------------------------------
+
+if ( $check{"servers"} ) {
+
+  # see whether programs are running...
+  printf "Checking $X::instrument servers:\n";
+
+  # define servers...
+  my( %server_description) = ( 'kcwi' => 'global server',
+			       'kbes'   => 'blue exchanger',
+			       'kbgs'    => 'blue pressure gauge',
+			       'kbms'     => 'blue mechanisms',
+			       'kbvs'    => 'blue ion pump',
+			       'kcas'   => 'calibration',
+			       'kbds'   => 'blue detector',
+			       'kfcs'   => 'focal plane camera',
+			       'kp1s'   => 'power 1',
+			       'kp2s'   => 'power 2',
+			       'kp3s'   => 'power 3',
+			       'kros'   => 'rotator',
+			       'kt1s'    => 'temperature 1',
+			       'kt2s'    => 'temperature 2');
+  
+  # loop over servers and check the lastalive keyword...
+  my $keyword = "lastalive";
+  my $server;
+
+  # compute an alphabetized list with global server first..
+  my @servers = grep(!/kcwi/, sort keys %server_description); 
+  unshift @servers, 'kcwi';
+
+  foreach $server (@servers) {
+      print &labelize("Checking $server");
+      if( system( "show -s $server $keyword >& /dev/null") == 0){
+	  print "$X::good (" . $server_description{$server} . ")\n";
+      } else {
+	  print "$X::error (" . $server_description{$server} . ")\n";
+	  $n_errors++;
+      }
+  }
+}
+
+#----------------------------------------
+# Check applications...
+#----------------------------------------
+
+if ( $check{"apps"} ) {
+
+  # see whether programs are running...
+  printf "Checking $X::instrument applications:\n";
+
+  my( $item);
+  foreach $item (qw(ds9)) {
+
+    print &labelize("Checking $item");
+    if( system( "get_kcwi_pid $item > /dev/null") == 0){
+      print "$X::good\n"
+    } else {
+      print "$X::error\n";
+      $n_errors++;
+    }
+
+  }
+}
+
+#----------------------------------------
+# Check applications...
+#----------------------------------------
+
+if ( $check{"daemons"} ) {
+
+  # see whether programs are running...
+  printf "Checking $X::instrument daemons: \n";
+
+  my( $item);
+  foreach $item (qw( keygrabber kcwidisplayb watch_dcs_rotator kcwiConfManager)) {
+
+    print &labelize("Checking $item");
+    if( system( "get_kcwi_pid $item > /dev/null") == 0){
+      print "$X::good\n"
+    } else {
+      print "$X::error\n";
+      $n_errors++;
+    }
+    #my $keyword = "${item}ok";
+    #my $value = `show -s mosfire -terse $keyword`;
+    #if( $value == 1 ){
+    #  print "$X::good\n"
+    #} else {
+    #  print "$X::warning : Ignore for afternoon checkout.\n";
+    #  $n_warnings++;
+    #}
+
+  }
+}
+
+#----------------------------------------
+# Check power...
+#----------------------------------------
+
+if ( $check{"power"} ) {
+    
+    # define keywords to test and the corresponding desired values (GOODVALUE)...
+    my( @stage_keywords) = ( 
+	
+	# power strip 1, pos 1 FPCam
+	{ NAME=>'pwname1',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kp1s', 
+	  KEYWORD=>'pwstat1',
+	  GOODVALUE=>'1',
+	  BADSTATUS=>$X::warning},
+
+	# power strip 1, pos 2 Magiq
+	{ NAME=>'pwname2',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kp1s', 
+	  KEYWORD=>'pwstat2',
+	  GOODVALUE=>'1',
+	  BADSTATUS=>$X::error},
+
+	# power strip 1, pos 3 Glycol
+	{ NAME=>'pwname3',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kp1s', 
+	  KEYWORD=>'pwstat3',
+	  GOODVALUE=>'1',
+	  BADSTATUS=>$X::error},
+
+	# power strip 1 pos 4 Lkshore1
+	#{ NAME=>'pwname4',
+	#  ISNAMEAKEYWORD=>'yes',
+	#  LIBRARY=>'kp1s', 
+	#  KEYWORD=>'pwstat4',
+	#  GOODVALUE=>'1',
+	#  BADSTATUS=>$X::error},
+
+	# power strip 1 pos 5 BPGauge
+	{ NAME=>'pwname5',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kp1s', 
+	  KEYWORD=>'pwstat5',
+	  GOODVALUE=>'1',
+	  BADSTATUS=>$X::error},
+
+	# power strip 1 pos 6 BVacIon
+	{ NAME=>'pwname6',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kp1s', 
+	  KEYWORD=>'pwstat6',
+	  GOODVALUE=>'1',
+	  BADSTATUS=>$X::error},
+
+	# power strip 1 pos 7 Hatch
+	{ NAME=>'pwname7',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kp1s', 
+	  KEYWORD=>'pwstat7',
+	  GOODVALUE=>'1',
+	  BADSTATUS=>$X::warning},
+
+	# power strip 1 pos 8 BShutter
+	{ NAME=>'pwname8',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kp1s', 
+	  KEYWORD=>'pwstat8',
+	  GOODVALUE=>'1',
+	  BADSTATUS=>$X::warning},
+
+	# power strip 2 pos 1 HeatExchanger
+	{ NAME=>'pwname1',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kp2s', 
+	  KEYWORD=>'pwstat1',
+	  GOODVALUE=>'1',
+	  BADSTATUS=>$X::error},
+
+	# power strip 2 pos 2 BDet
+	{ NAME=>'pwname2',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kp2s', 
+	  KEYWORD=>'pwstat2',
+	  GOODVALUE=>'1',
+	  BADSTATUS=>$X::error},
+
+	# power strip 2 pos 3 Unused
+	{ NAME=>'pwname3',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kp2s', 
+	  KEYWORD=>'pwstat3',
+	  GOODVALUE=>'0',
+	  BADSTATUS=>$X::error},
+
+	# power strip 2 pos 4 Lkshore2
+	{ NAME=>'pwname4',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kp2s', 
+	  KEYWORD=>'pwstat4',
+	  GOODVALUE=>'1',
+	  BADSTATUS=>$X::error},
+
+	# power strip 2 pos 5 Lantrnx1
+	{ NAME=>'pwname5',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kp2s', 
+	  KEYWORD=>'pwstat5',
+	  GOODVALUE=>'1',
+	  BADSTATUS=>$X::error},
+
+	# power strip 2 pos 6 Unused
+	{ NAME=>'pwname6',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kp2s', 
+	  KEYWORD=>'pwstat6',
+	  GOODVALUE=>'0',
+	  BADSTATUS=>$X::error},
+
+	# power strip 2 pos 7 PB2:BEX;BMS
+	{ NAME=>'pwname7',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kp2s', 
+	  KEYWORD=>'pwstat7',
+	  GOODVALUE=>'1',
+	  BADSTATUS=>$X::error},
+
+	# power strip 2 pos 8 Unused
+	{ NAME=>'pwname8',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kp2s', 
+	  KEYWORD=>'pwstat8',
+	  GOODVALUE=>'0',
+	  BADSTATUS=>$X::error},
+
+	# power strip 3 pos 1 CalLamps
+	{ NAME=>'pwname1',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kp3s', 
+	  KEYWORD=>'pwstat1',
+	  GOODVALUE=>'1',
+	  BADSTATUS=>$X::error},
+
+	# power strip 3 pos 2 Unused
+	{ NAME=>'pwname2',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kp3s', 
+	  KEYWORD=>'pwstat2',
+	  GOODVALUE=>'0',
+	  BADSTATUS=>$X::error},
+
+	# power strip 3 pos 3 Unused
+	{ NAME=>'pwname3',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kp3s', 
+	  KEYWORD=>'pwstat3',
+	  GOODVALUE=>'0',
+	  BADSTATUS=>$X::error},
+
+	# power strip 3 pos 4 Unused
+	{ NAME=>'pwname4',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kp3s', 
+	  KEYWORD=>'pwstat4',
+	  GOODVALUE=>'0',
+	  BADSTATUS=>$X::error},
+
+	# power strip 3 pos 5 Unused
+	{ NAME=>'pwname5',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kp3s', 
+	  KEYWORD=>'pwstat5',
+	  GOODVALUE=>'0',
+	  BADSTATUS=>$X::error},
+
+	# power strip 3 pos 6 Unused
+	{ NAME=>'pwname6',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kp3s', 
+	  KEYWORD=>'pwstat6',
+	  GOODVALUE=>'0',
+	  BADSTATUS=>$X::error},
+
+	# power strip 3 pos 7 Unused
+	{ NAME=>'pwname7',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kp3s', 
+	  KEYWORD=>'pwstat7',
+	  GOODVALUE=>'0',
+	  BADSTATUS=>$X::error},
+
+	# power strip 3 pos 8 PB1:CAL;ROT
+	{ NAME=>'pwname8',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kp3s', 
+	  KEYWORD=>'pwstat8',
+	  GOODVALUE=>'1',
+	  BADSTATUS=>$X::error},
+
+	);
+
+    &reportStage( "power", \@stage_keywords);
+};
+
+#----------------------------------------
+# Check settings...
+#----------------------------------------
+
+if ( $check{"stages"} ) {
+    
+    # define keywords to test and the corresponding desired values (GOODVALUE)...
+    my( @stage_keywords) = ( 
+	
+	# global bes status
+	{ NAME=>'Blue exchanger status',
+	  ISNAMEAKEYWORD=>'no',
+	  LIBRARY=>'kbes', 
+	  KEYWORD=>'status',
+	  GOODVALUE=>'OK',
+	  LOCKED=>'movelock',
+	  BADSTATUS=>$X::warning},
+
+	# Grating 
+	{ NAME=>'Grating',
+	  ISNAMEAKEYWORD=>'no',
+	  LIBRARY=>'kbes', 
+	  KEYWORD=>'gstatus',
+	  GOODVALUE=>'Success: Coordinated park motion complete.',
+	  LOCKED=>'movelock',
+	  BADSTATUS=>$X::warning},
+	# Filter
+	{ NAME=>'Filter',
+	  ISNAMEAKEYWORD=>'no',
+	  LIBRARY=>'kbes', 
+	  KEYWORD=>'fstatus',
+	  GOODVALUE=>'Success: Coordinated park motion complete.',
+	  LOCKED=>'movelock',
+	  BADSTATUS=>$X::warning},
+
+	# grating rotator
+	{ NAME=>'Grating rotator',
+	  ISNAMEAKEYWORD=>'no',
+	  LIBRARY=>'kbes', 
+	  KEYWORD=>'grstatus',
+	  GOODVALUE=>'Move complete',
+	  LOCKED=>'movelock',
+	  BADSTATUS=>$X::warning},
+	# grating pusher
+	{ NAME=>'Grating pusher',
+	  ISNAMEAKEYWORD=>'no',
+	  LIBRARY=>'kbes', 
+	  KEYWORD=>'gpstatus',
+	  GOODVALUE=>'Move complete',
+	  LOCKED=>'movelock',
+	  BADSTATUS=>$X::warning},
+	# grating transfer
+	{ NAME=>'Grating transfer',
+	  ISNAMEAKEYWORD=>'no',
+	  LIBRARY=>'kbes', 
+	  KEYWORD=>'gtstatus',
+	  GOODVALUE=>'Move complete',
+	  LOCKED=>'movelock',
+	  BADSTATUS=>$X::warning},
+	# filter pusher
+	{ NAME=>'Filter pusher',
+	  ISNAMEAKEYWORD=>'no',
+	  LIBRARY=>'kbes', 
+	  KEYWORD=>'fpstatus',
+	  GOODVALUE=>'Move complete',
+	  LOCKED=>'movelock',
+	  BADSTATUS=>$X::warning},
+	# filter transfer
+	{ NAME=>'Grating transfer',
+	  ISNAMEAKEYWORD=>'no',
+	  LIBRARY=>'kbes', 
+	  KEYWORD=>'ftstatus',
+	  GOODVALUE=>'Move complete',
+	  LOCKED=>'movelock',
+	  BADSTATUS=>$X::warning},
+	# grating cassette
+	{ NAME=>'Grating and filter cassette',
+	  ISNAMEAKEYWORD=>'no',
+	  LIBRARY=>'kbes', 
+	  KEYWORD=>'castatus',
+	  GOODVALUE=>'Move complete',
+	  LOCKED=>'movelock',
+	  BADSTATUS=>$X::warning},
+
+	# Focus 
+	{ NAME=>'Focus mechanism',
+	  ISNAMEAKEYWORD=>'no',
+	  LIBRARY=>'kbms', 
+	  KEYWORD=>'focstatus',
+	  GOODVALUE=>'OK',
+	  LOCKED=>'movelock',
+	  BADSTATUS=>$X::warning},
+	# Nod and shuffle
+	{ NAME=>'Nod and shuffle mask',
+	  ISNAMEAKEYWORD=>'no',
+	  LIBRARY=>'kbms', 
+	  KEYWORD=>'nasstatus',
+	  GOODVALUE=>'OK',
+	  LOCKED=>'movelock',
+	  BADSTATUS=>$X::warning},
+	# Articulation stage
+	{ NAME=>'Articulation stage',
+	  ISNAMEAKEYWORD=>'no',
+	  LIBRARY=>'kbms', 
+	  KEYWORD=>'artstatus',
+	  GOODVALUE=>'OK',
+	  LOCKED=>'movelock',
+	  BADSTATUS=>$X::warning},
+
+	# IFU
+	{ NAME=>'IFU',
+	  ISNAMEAKEYWORD=>'no',
+	  LIBRARY=>'kcas', 
+	  KEYWORD=>'ifustatus',
+	  GOODVALUE=>'OK',
+	  LOCKED=>'movelock',
+	  BADSTATUS=>$X::warning},
+
+	# Status
+	{ NAME=>'Calibration unit',
+	  ISNAMEAKEYWORD=>'no',
+	  LIBRARY=>'kcas', 
+	  KEYWORD=>'status',
+	  GOODVALUE=>'OK',
+	  LOCKED=>'movelock',
+	  BADSTATUS=>$X::warning},
+	);
+
+    &reportStage( "stages", \@stage_keywords);
+};
+
+#----------------------------------------
+# Check settings...
+#----------------------------------------
+
+if ( $check{"settings"} ) {
+    
+    # define keywords to test and the corresponding desired values (GOODVALUE)...
+    my( @stage_keywords) = ( 
+	
+	# Blue CCD A ...
+	{ NAME=>'tmploc1',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kt1s', 
+	  KEYWORD=>'tmp1',
+	  MINVALUE=>-112.15,
+	  MAXVALUE=>-108.15,
+	  BADSTATUS=>$X::warning},
+
+	# blue cam B
+	{ NAME=>'tmploc2',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kt1s', 
+	  KEYWORD=>'tmp2',
+	  MINVALUE=>-5,
+	  MAXVALUE=>5,
+	  BADSTATUS=>$X::warning},
+
+	# Blue shutter
+	{ NAME=>'tmploc3',
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kt1s', 
+	  KEYWORD=>'tmp3',
+	  MINVALUE=>-5,
+	  MAXVALUE=>5,
+	  BADSTATUS=>$X::warning},
+	
+	# blue invar plate
+	{ NAME=>"tmploc4", 
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kt1s', 
+	  KEYWORD=>'tmp4',
+	  MINVALUE=>-112.15,
+	  MAXVALUE=>-108.15,
+	  BADSTATUS=>$X::warning},
+	
+	# blue strap bottom
+	{ NAME=>"tmploc5", 
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kt1s', 
+	  KEYWORD=>'tmp5',
+	  MINVALUE=>-140,
+	  MAXVALUE=>-120,
+	  BADSTATUS=>$X::warning},
+
+	# blue strap top
+	{ NAME=>"tmploc6",
+	  ISNAMEAKEYWORD=>'yes', 
+	  LIBRARY=>'kt1s', 
+	  KEYWORD=>'tmp6',
+	  MINVALUE=>-180,
+	  MAXVALUE=>-160,
+	  BADSTATUS=>$X::warning},
+
+	# blue case...
+	{ NAME=>"tmploc7",
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kt1s', 
+	  KEYWORD=>'tmp7',
+	  MINVALUE=>-5,
+	  MAXVALUE=>5,
+	  BADSTATUS=>$X::warning},
+
+	# bench bottom
+	{ NAME=>"tmploc8",
+	  ISNAMEAKEYWORD=>'yes',
+	  LIBRARY=>'kt1s', 
+	  KEYWORD=>'tmp8',
+	  MINVALUE=>-5,
+	  MAXVALUE=>10,
+	  BADSTATUS=>$X::warning},
+
+	# Bench top A
+	#{ NAME=>'tmploc1',
+	#  ISNAMEAKEYWORD=>'yes',
+	#  LIBRARY=>'kt2s', 
+	#  KEYWORD=>'tmp1',
+	#  MINVALUE=>-10,
+	#  MAXVALUE=>29,
+	#  BADSTATUS=>$X::warning},
+
+	# IFU base B
+	#{ NAME=>'tmploc2',
+	#  ISNAMEAKEYWORD=>'yes',
+	#  LIBRARY=>'kt2s', 
+	#  KEYWORD=>'tmp2',
+	#  MINVALUE=>-10,
+	#  MAXVALUE=>29,
+	#  BADSTATUS=>$X::warning},
+
+	# Cab Rear
+	#{ NAME=>'tmploc3',
+	#  ISNAMEAKEYWORD=>'yes',
+	#  LIBRARY=>'kt2s', 
+	#  KEYWORD=>'tmp3',
+	#  MINVALUE=>-10,
+	#  MAXVALUE=>29,
+	#  BADSTATUS=>$X::warning},
+	
+	# KMG Weld
+	#{ NAME=>"tmploc4", 
+	#  ISNAMEAKEYWORD=>'yes',
+	#  LIBRARY=>'kt2s', 
+	#  KEYWORD=>'tmp4',
+	#  MINVALUE=>-10,
+	#  MAXVALUE=>29,
+	#  BADSTATUS=>$X::warning},
+	
+	# Cal Base
+	#{ NAME=>"tmploc5", 
+	#  ISNAMEAKEYWORD=>'yes',
+	#  LIBRARY=>'kt2s', 
+	#  KEYWORD=>'tmp5',
+	#  MINVALUE=>-10,
+	#  MAXVALUE=>29,
+	#  BADSTATUS=>$X::warning},
+
+	# Collimator
+	#{ NAME=>"tmploc6",
+	#  ISNAMEAKEYWORD=>'yes', 
+	#  LIBRARY=>'kt2s', 
+	#  KEYWORD=>'tmp6',
+	#  MINVALUE=>-10,
+	#  MAXVALUE=>29,
+	#  BADSTATUS=>$X::warning},
+
+	# Cab interior
+	#{ NAME=>"tmploc7",
+	#  ISNAMEAKEYWORD=>'yes',
+	#  LIBRARY=>'kt2s', 
+	#  KEYWORD=>'tmp7',
+	#  MINVALUE=>-10,
+	#  MAXVALUE=>29,
+	#  BADSTATUS=>$X::warning},
+
+	# blue Fill
+	#{ NAME=>"tmploc8",
+	#  ISNAMEAKEYWORD=>'yes',
+	#  LIBRARY=>'kt2s', 
+	#  KEYWORD=>'tmp8',
+	#  MINVALUE=>-100,
+	#  MAXVALUE=>29,
+	#  BADSTATUS=>$X::warning},
+
+	# ion pump status
+	{ NAME=>"Status (ion pump)",
+	  ISNAMEAKEYWORD=>'no',
+	  LIBRARY=>'kbvs', 
+	  KEYWORD=>'hvon',
+	  GOODVALUE=>1,
+	  BADSTATUS=>$X::error},
+
+	# ion pump pressure
+	{ NAME=>"Pressure (ion pump)",
+	  ISNAMEAKEYWORD=>'no',
+	  LIBRARY=>'kbvs', 
+	  KEYWORD=>'pressure',
+	  MINVALUE=>0.0,
+	  MAXVALUE=>0.0000001,
+	  BADSTATUS=>$X::warning},
+
+	# ion pump current
+	{ NAME=>"Current (ion pump)",
+	  ISNAMEAKEYWORD=>'no',
+	  LIBRARY=>'kbvs', 
+	  KEYWORD=>'current',
+	  MINVALUE=>0,
+	  MAXVALUE=>0.000002,
+	  BADSTATUS=>$X::warning},
+
+	# ion pump voltage
+	{ NAME=>"Voltage (ion pump)",
+	  ISNAMEAKEYWORD=>'no',
+	  LIBRARY=>'kbvs', 
+	  KEYWORD=>'voltage',
+	  MINVALUE=>4900,
+	  MAXVALUE=>5010,
+	  BADSTATUS=>$X::warning},
+	
+	# pressure gauge
+	{ NAME=>"Pressure gauge", 
+	  ISNAMEAKEYWORD=>'no',
+	  LIBRARY=>'kbgs', 
+	  KEYWORD=>'pgpress',
+	  MINVALUE=>0,
+	  MAXVALUE=>0.1,
+	  BADSTATUS=>$X::warning},
+	
+	# datataking system status...
+	{ NAME=>'CCD power',
+	  ISNAMEAKEYWORD=>'no',
+	  LIBRARY=>'kbds', 
+	  KEYWORD=>'CCDPOWER',
+	  GOODVALUE=>'1',
+	  BADSTATUS=>$X::warning},
+
+	# current instrument check...
+	{ NAME=>'current instrument',
+	  ISNAMEAKEYWORD=>'no',
+	  LIBRARY=>'dcs', 
+	  KEYWORD=>'currinst',
+	  GOODVALUE=>$X::instrument,
+	  BADSTATUS=>$X::warning}
+
+	);
+
+    &reportStage( "settings", \@stage_keywords);
+};
+
+#----------------------------------------
+# print final status...
+#----------------------------------------
+
+printf "-----------------------------------------------------------------------------\n";
+if ( $n_errors == 0 and $n_warnings == 0) {
+  printf "\tAll tested $X::instrument systems appear functional.\n"
+} else {
+  printf "\t%d errors and $n_warnings warnings were issued.\n", $n_errors
+}
+
+printf "\nPlease visually check Glycol flow. This script only checks glycol pump power.\n";
+
+printf "-----------------------------------------------------------------------------\n";
+
+if ( $n_errors > 0 ) {
+  exit $n_errors
+} elsif ( $n_warnings > 0 ) {
+  exit -$n_warnings
+}
+
+#-----------------------------------------------------------------------
+sub labelize {
+#-----------------------------------------------------------------------
+  my( $string) = @_;
+  my( $size) = 45;
+  my( $label);
+  
+  $label = "  $string";
+  while( length($label) < $size ){ $label .= "." }
+  return $label
+}
+
+#-----------------------------------------------------------------------
+sub reportStage {
+#-----------------------------------------------------------------------
+    my $system = shift;
+    my $stage_keywords = shift;
+    my $record;
+    my $library;
+    my $keyword;
+    my @goodvalues;
+    my $v;
+
+    # see whether programs are running...
+    printf "Checking $X::instrument $system:\n";
+    
+    # loop over keywords and perform test...
+    foreach $record ( @$stage_keywords ){
+	
+	# extract system name from hash...
+	$system  = $record->{NAME};
+	$library = $record->{LIBRARY};
+	$keyword = $record->{KEYWORD};
+	if ( $record->{ISNAMEAKEYWORD} eq 'yes' ) {
+	    $command = "show -s $library -terse $record->{NAME} 2> /dev/null";
+	    $system = `$command`;
+	    chomp ($system);
+	}
+
+	# resolve default name...
+	#if( $system eq $X::default ){
+	#    $command = "show -s $library -terse ${keyword}loc";
+	#    $system = `$command`;
+	#    chomp( $system);
+	#}
+	print &labelize("Checking $system");
+	
+	# build and execute command to return keyword value...
+	$command = "show -s $library -terse $keyword 2> /dev/null";
+	$value = `$command`;
+	chomp( $value);
+	if (index($keyword,'tmp') != -1) {
+	    $value = $value - 273.15
+	}
+
+	# test the value against the desired...
+	$message = '';
+	if( defined($record->{GOODVALUE})) {
+
+	    # split string into potentially multiple good values...
+	    @goodvalues = split( /\|/, $record->{GOODVALUE});
+	    
+	    # compare the current value to all possible good values...
+	    $state = $record->{BADSTATUS};
+	    foreach $v (@goodvalues){
+		$state = $X::good if $value eq $v		    
+	    }
+
+	    # add appropriate message if not good...
+	    if( $state ne $X::good){
+		my $temp = q(') . join( q(' or '), @goodvalues ) . q(');
+		$message = sprintf( "Current value '%s' should be %s",
+				    $value,
+				    $temp);
+		if ( $system eq "FCS correcting" ) {
+		    $message = "$message. Ignore for afternoon checkout.";
+		}
+
+	    }
+
+	} elsif( defined($record->{MINVALUE}) and
+		 defined($record->{MAXVALUE})) {
+	    if( $value >= $record->{MINVALUE} and
+		$value <= $record->{MAXVALUE}){
+		$state = $X::good;
+	    } else {
+		$state = $record->{BADSTATUS};
+		$message = sprintf( "Current value %s outside of good range %s - %s",
+				    $value,
+				    $record->{MINVALUE},
+				    $record->{MAXVALUE});
+	    }
+	} else {
+	    $state = $X::warning;
+	    $message = "No valid comparison defined";
+	}
+
+	# optional lock check,,,
+	if( defined( $record->{LOCKED})){
+
+	    # build and execute command to return keyword value...
+	    if( system( "show -s $library lastalive >& /dev/null" ) == 0) {
+
+		$command = "show -s $library -terse $record->{LOCKED} 2> /dev/null";
+		$value = `$command`;
+	        #print $value;
+		chomp( $value);
+		if ( $value ne '0' ) {
+		    $state = $record->{BADSTATUS};
+		    $message = 'stage is locked out';
+		}
+		    
+		#} # if ( $ value ne...)
+
+	    } #if (system(...
+	    else {
+		$state = $X::warning;
+		$message = "Error: Cannot check stage status. No access to server.";
+	    }
+
+	#}
+
+          
+
+    }
+	
+	if( $state eq $X::error) {
+	    $n_errors++;
+	} elsif( $state eq $X::warning) {
+	    $n_warnings++;
+	} elsif ($state ne $X::good) {
+	    die "illegal BADSTATUS value is neither ERROR nor WARNING";
+	}
+	
+	printf "%s %s\n", $state, $message;
+    }
+}

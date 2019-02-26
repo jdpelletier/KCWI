@@ -1,0 +1,52 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#       markbase -- set the base telescope coordinates to the 
+#                    current coordinates
+#
+# SYNOPSIS
+#	markbase
+# 
+# DESCRIPTION
+##	Reset the telescope BASE corodinates to be the current
+#	coordinates of the telescope; i.e., reset the RA and Dec
+#	offsets to zero.  This might be useful when you are about to
+#	undertake and operation which will require numerous telescope moves
+#	and you want to be able to return to the starting position.
+#	In this case, use "markbase" before your first move, and then use
+#	"gotobase" to return to the starting position.
+#
+# ARGUMENTS
+# 
+# OPTIONS
+#
+# EXAMPLES
+#	1) set the base coordinates to the current coordinates:
+#		markbase
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#
+# SCRIPTS CALLED
+#
+# EXIT STATUS
+#	 0 = normal completion
+#	 1 = wrong number of arguments
+#
+# Modification history:
+#	2011apr27	MK	Original version
+#-------------------------------------------------------------
+
+# check args...
+if (${#argv} != 0) then
+  echo "Usage: markbase"
+  exit 1
+endif
+
+# set base to current...
+modify -s dcs mark=true

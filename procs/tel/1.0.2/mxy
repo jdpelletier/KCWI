@@ -1,0 +1,168 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#     mxy -- move telescope in instrument (detector) coordinates
+#
+# SYNOPSIS
+#	mxy [-n] [-abs] x y
+#
+# DESCRIPTION
+#	Offset the telescope a given number of arcsec in the
+#	coordinate system of the DEIMOS detector.  The offset is 
+#	relative to the current coordinaets by default; the optional
+#	flag "-abs" causes the move to be made relative to the base
+#	coordinates; i.e., an absolute move.
+#
+# ARGUMENTS
+#	x = offset in the direction parallel with CCD rows [arcsec]
+#	y = offset in the direction parallel with CCD columns [arcsec]
+#
+# OPTIONS
+#	-n   = no move; just print predicted move and exit
+#	-abs = flag specifying that the move should be relative to 
+#		BASE position, rather than current position
+#
+# EXAMPLES
+#	1) Move telecope 10 arcsec along rows and -20 arcsec along columns:
+#		mxy 10 -20
+#	Note that since this is a *telescope* move, the target will
+#	"move" in the OPPOSITE direction!
+#
+#	2) Move telecope 10 arcsec along rows and -20 arcsec along columns:
+#		mxy 10 -20
+#	Note that since this is a *telescope* move, the target will
+#	"move" in the OPPOSITE direction!
+#
+# ENVIRONMENT VARIABLES
+#     list of environment variables used
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#     service = dcs
+#          keywords: instxoff, instyoff
+#
+# SCRIPTS CALLED
+#     help
+#
+# EXIT STATUS
+#     0 - normal exit, no error
+#     1 - script aborted by an interrupt
+#     2 - syncheck error
+#     3 - error parsing command line input
+#     other errors...
+#
+# SEE ALSO
+#     ???
+#-
+#
+# Modification History:
+# 20110411 - MK:  Original Version
+# 20120405 - GDW: Added wftel call to ensure guider has settled
+# 20120420 - MK:  Removed the coordinate sign flip.
+# 20120601 - GDW: inserted code to check elapsed time for wftel
+# 20120602 - GDW: add check for moves 0 in both axes
+# 20120603 - GDW: fix problem with print statements
+# 20120909 - GDW: add angle transformation to account for offset between
+#		CSU coords (which defines INSTX/INSTY) and detector coords
+# 20120909 - GDW: add -n option
+# 20120909 - GDW: change angle from -0.244 to +0.136 per on-sky test
+# 20140312 -  MK: Added loging to the nightly directory
+#----------------------------------------------------------------
+
+# Set default variable values
+set cmd = `basename $0`
+set usage = "Usage: $cmd [-abs] x y"
+
+# Boiler plate for "-h" support for command autohelp.
+if ("$1" =~ -h* ) then
+    help $0 | more
+    exit $status
+endif
+
+# check for flags...
+while (1)
+    if ( "$1" =~ \-a* ) then
+	set abs = 1
+	shift
+    else if ( "$1" =~ \-n* ) then
+	set nomove = 1
+	shift
+    else
+	break
+    endif
+end
+
+# Check for correct number of arguments
+if (${#argv} != 2) then  
+  printf "$usage\n\a"
+  exit 1
+endif
+
+# verify floating-point values...
+is_float $* > /dev/null
+if ( $status ) then
+  printf "[$cmd] ERROR: arguments must be valid floating-point numbers -- abort!\n\a"
+  exit 2
+endif
+
+# effect the move...
+# found that the moves were opposite to what was expected
+# this is because of the current settings for instand and instflip
+# move may still be 0.244 degrees off based on alignment to the CSU
+# instead of aligning to the detector. 
+#2012apr20 - updated to use the positive moves. 
+#   Rotbase was made to be 180 degrees from the current position.
+#   commented out the inverted moves.
+set x = $1
+set y = $2
+
+# check for case of no move.  The purpose of the following lines is to
+# convert "0" or "0.0" or "0.000000" to just "0" so we can perform a
+# string comparison...
+set x2 = `calc "$x*1"`
+set y2 = `calc "$y*1"`
+#check for no move.
+if ( "$x2" == "0" && "$y2" == "0" ) then
+    printf "[$cmd] WARNING: x and y moves are both zero -- exiting\n"
+    exit 0
+endif
+
+# Grab the current value of autpause...
+set autresum = `show -s dcs -terse autresum`
+
+# transform (x,y) in detector coords into (u,v) in CSU coords...
+## set angle = -0.244 # offset between CSU and detector [deg]
+#set angle = 0.136 # offset between CSU and detector [deg]
+#set u = `calc "$x*cosd($angle) + $y*sind($angle)"`
+#set v = `calc "$y*cosd($angle) - $x*sind($angle)"`
+
+
+
+# perform absolute or relative moves...
+if ( $?abs ) then
+    set command = "modify -s dcs silent instxoff=$x instyoff=$y rel2base=t"
+else
+    set command = "modify -s dcs silent instxoff=$x instyoff=$y rel2curr=t"
+endif
+
+# if "-n" flag was given, then simply print move and quit...
+if ( $?nomove ) then
+    printf "[$cmd] move command (NOT SENT) is:\n\t$command\n"
+    exit
+endif
+
+# execute move...
+$command
+
+
+
+# wait for guider to cycle twice...
+@ startTime = `date +"%s"`
+wftel $autresum
+@ endTime = `date +"%s"`
+@ elapsedTime = $endTime - $startTime
+echo "[$cmd] wftel completed in $elapsedTime sec"
+exit

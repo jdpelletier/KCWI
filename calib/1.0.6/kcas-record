@@ -1,0 +1,51 @@
+#!/bin/csh -f 
+#
+# 170503 -- Matuszewski
+# matmat@caltech.edu
+#
+# The purpose of this script is to record images with both the 
+# focal plane camera and the magiq guider
+
+# 1. Check that the focal plane camera is on
+# 2. Check that the MAGIQ guider camera is on and configured
+# 3. Make aux subdirectory 
+# 4. Save focal plane camera parameters
+# 5. Take fine bars
+# 6. Take med bars
+# 7. Take flat 
+# 8. Take 300 um pinhole at 3 locations
+# 9. Output table of images taken, frame numbers, etc. 
+# 10. Clean up focal plane camera keywords
+
+# here is where we might save the instrument state and load the FPCAM state
+
+# the assumption is that MAGIQ is initialized and can acquire images 
+# via the kcwi script saveGuiderImage
+
+
+# Check the that focal plane camera is initialized 
+set fpcclosed=`show -t -s kfcs closed`
+if ( $fpcclosed == 1 ) then
+    echo "Focal plane camera is closed. Exiting." >> /dev/stderr
+    exit -1
+endif
+
+# check that the ifu is at the focal plane camera position 
+set ifuname=`show -t -s kcas ifuname`
+set ifuname=`tolower $ifuname`
+if ( $ifuname != fpcam ) then
+    echo "IFU is in the wrong place. Exiting." >> /dev/stderr
+    exit -1
+endif 
+
+# Run the kcas focus script
+kcas_focus
+
+# Run the centering script 
+kcas_find_offsets
+
+# at this point, we just want to take some images with both the
+# focal plane camera and the magiq guider to help with long
+# term trends (thermal and otherwise).
+
+kcas-magiq-data

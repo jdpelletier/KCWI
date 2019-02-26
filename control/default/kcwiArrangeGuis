@@ -1,0 +1,116 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#	kcwiArrangeGuis - Arrange guis 
+#
+# SYNOPSIS
+#       kcwiStart [-no_init]
+#
+# DESCRIPTION
+#   Arranges guis. This is done only on the display control2 desktop because the others only have
+#   one item on it.
+#
+#
+# RESTRICTIONS
+#       The $DISPLAY environment variable must be set appropriately.  The
+#       best way to do this is to use a utility such as "xrsh" to run the
+#       program; see example.
+#
+# OPTIONS
+#       -no_init = do not run init script
+#
+# EXAMPLES
+#	1) To run: 
+#		kcwiArrangeGuis
+#
+# ENVIRONMENT VARIABLES
+#     list of environment variables used
+#
+# FILES
+#     list of files used
+#
+# SERVERS & KEYWORDS
+#     list of the servers and keywords used, for example:
+#
+#     service = kcwi
+#          keywords: sfilter/ifilter, sscale
+#
+# SCRIPTS CALLED
+#     list of the scripts called by this script, for example:
+#
+#     help, syncheck
+#
+# EXIT STATUS
+#     0 - normal exit, no error
+#     1 - script aborted by an interrupt
+#     2 - syncheck error
+#     3 - error parsing command line input
+#     other errors...
+#
+# SEE ALSO
+#     ???
+#-
+#
+# Modification History:
+#       2012 nov 6      MK      Added auto arrangement of guis on display2
+#       2012 nov 8      MK       Updated to use REMOTEHOST for arranging guis
+#	2012-Dec-07	GDW	Remove extraneous closing message
+#	2012-Dec-07	GDW	Rename KcwiServerXterm
+#	2013-Jan-12	GDW	Add eventsounds, remove audio alerts
+#       2013-Sep-25     MK      Added Program Interface Gui and re-arranged
+#       2014-Apr-7      MK      Added mxy offset logging
+#	2014-Jul-22	GDW	Shift eventsounds, tkrose, PIG
+#       2016-Jul-14     LR      Modified for KCWI
+#------------------------------------------------------------------------------
+
+# -------------------------------------------------------------------
+# define display layout appropriate for number of screens on host...
+# -------------------------------------------------------------------
+
+if ( ! $?DISPLAY) then
+    printf "ERROR: must set DISPLAY before running this program\n"
+    exit 1
+endif
+
+# set display variables...
+    set uidisp0 = `uidisp 0`
+    set uidisp1 = `uidisp 1`
+    set uidisp2 = `uidisp 2`
+
+
+# ----------------------------------------------------------------------
+# Arrange Guis on the desktops
+# ----------------------------------------------------------------------
+#start_tklogger $uidisp1
+# this could be more robust by first determining the display.
+set remhost = "vm-kcwi" 
+#`echo $REMOTEHOST`
+set cmd = "ssh $remhost "
+
+## echo $cmd
+set verbose
+#$cmd  xwit -display $uidisp2 -move 5 25 -resize 165 120 -names "VNC Desktop"
+#$cmd  xwit -display $uidisp2 -move -5 25 -resize 300 120 -names "VNC_Console"
+# find which window corresponds to ds9 autodisplayb
+set id = `$cmd xwininfo -tree -root -display $uidisp1 | grep AutoDisplayB | awk '{print $1}'`
+$cmd  xwit -display $uidisp1 -move 430 25 -resize 728 861 -pop -id $id
+set id = `$cmd xwininfo -tree -root -display $uidisp1 | grep AutoDisplayFPC | awk '{print $1}'`
+$cmd  xwit -display $uidisp1 -move 1170 25 -resize 728 861 -pop -id $id
+set id = `$cmd xwininfo -tree -root -display $uidisp2 | grep AutoDisplayMAGIQ | awk '{print $1}'`
+$cmd  xwit -display $uidisp2 -move 250 25 -resize 728 861 -pop -id $id
+set id = `$cmd xwininfo -tree -root -display $uidisp2 | grep eventsounds | awk '{print $1}'`
+$cmd  xwit -display $uidisp2 -move 1600 700 -pop -id $id
+set id = `$cmd xwininfo -tree -root -display $uidisp2 | grep Alignment | awk '{print $1}'`
+$cmd  xwit -display $uidisp2 -move 1000 25 -pop -id $id
+#$cmd  xwit -display $uidisp1 -move 1167 25 -resize 728 961 -pop -names "SAOImage AutodisplayFPC"
+#$cmd  xwit -display $uidisp1 -move 7 175 -names "tkrose"
+#$cmd  xwit -display $uidisp2 -move 265 25 -names "Kcwi keventsounds"
+#$cmd  xwit -display $uidisp2 -move 5 501 -iconify -names "Telescope_Offset_Checking"
+#$cmd  xwit -display $uidisp2 -move 5 390 -names "K1 - PIG"
+# Note: this must be last, otherwise it will be undone by the "Kcwi keventsounds" match
+#$cmd  xwit -display $uidisp2 -move 5 660 -resize 530 300 -pop -names "KCWIServerXterm"
+
+
+exit

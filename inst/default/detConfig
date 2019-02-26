@@ -1,0 +1,81 @@
+#!/bin/bash
+
+PARAMS="ADDFRAME AMPMODE AUTOSHUT CCDSPEED DISKLIST FRAMENO IDLECLOCK OUTCMPR OUTDIR OUTFILE OUTSAFE PPRECLR TODISK TTIME"
+
+PARAMDEFINITION="\
+ADDFRAME,int,,1,0:1,Increment frameno On/Off\n\
+AMPMODE,int,,0,0:10,Amp Mode\n\
+AUTOSHUT,int,,1,0:1,Auto Shutter On/Off\n\
+CCDMODE,int,,0,0:1,CCD Speed mode (0-slow, 1-fast)\n\
+DISKLIST,string,,/data:/tmp,,List of Data Output Disks\n\
+FRAMENO,int,,0,0:1000000,Image frameno\n\
+IDLECLOCK,int,,1,0:1,Idle Clocking On/Off\n\
+OUTCMPR,int,,0,0:1,Image File Compression On/Off\n\
+OUTDIR,string,,/data,,Output Image Directory\n\
+OUTFILE,string,,kbds,,Output Image Prefix\n\
+OUTSAFE,int,,1,0:1,Prevent Overwrite of Existing Image Files On/Off\n\
+PPRECLR,int,,1,0:1,Parallel Pre-Clear On/Off\n\
+TODISK,int,,1,0:1,Write Image To Disk On/Off\n\
+TTIME,float,s,0,0:3600,Exposure Time\n\
+"
+
+
+reportStatus()
+{
+	echo "EXECSTATUS=$1"
+	shift
+	echo 'STATUSMSG="'$*'"'
+}
+
+handleQueryParam()
+{
+	for p in $* 
+	do
+		case $p in
+		queryparam*) 
+			reportStatus OK Listing script parameters
+			/bin/echo -e "$PARAMDEFINITION"
+			exit 0
+			;;
+		esac
+		shift
+	done
+}
+
+checkParameters()
+{
+	COMMAND=`echo $* | sed -e "s/'//g"`
+	export COMMAND
+}
+
+performAction()
+{
+	if [ ${#COMMAND} == 1 ]
+	then
+		# Show params
+		show -s kbds $PARAMS
+	else
+		# Set params
+		modify -s kbds $COMMAND 
+	fi
+	return $?
+
+}
+
+# ***********************************************************
+# Main part
+# ***********************************************************
+
+handleQueryParam $*
+
+checkParameters $*
+
+OUTPUT=`performAction`
+
+if [ $? != 0 ]
+then
+	reportStatus ERROR Something went wrong
+else
+	reportStatus OK Set/Show detector configuration
+fi
+echo "$OUTPUT"

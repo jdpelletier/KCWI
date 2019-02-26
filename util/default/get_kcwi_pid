@@ -1,0 +1,146 @@
+#!/usr/bin/csh -f
+# 
+# Name:
+#	get_kcwi_pid
+# 
+# Purpose:
+#	return the process ID numbers (PISs) of the specified KCWI process type
+# 
+# Usage:
+#	get_kcwi_pid [-debug] [-silent] <type>
+#
+# Arguments:
+#	-debug = print full pattern matches
+#	-silent = do not print matching PIDs
+#	type = name of the process to check for.  Options are:
+# 
+# Exit values:
+#	0 = processes found and reported
+#	1 = no processes found
+#	-1 = invalid argument
+# 
+# Modification history:
+#	2001-Jan-19	GDW	Original version
+#	2001-Mar-13	GDW	Added "-silent" option
+#	2009-May-21	ECC	Upgraded w/ new tasks per LRIS red upgrade
+#	2011-Jul-15	GDW	Added lris_motor_status 
+#       2012-apr-01     MK      Modified for use with MOSFIRE
+#       2012-oct-31     MK      Modified to find PIDs for cus alerts
+#                               And fixed the autodisplay pid find.
+#       2016-jul-13     LR      Modified for use with KCWI
+#	2017-jul-17	ECC	Don't hardcode kdevroot; use KROOT and 
+#			 	 this *sin file
+#-----------------------------------------------------------------------
+
+set buf = $0
+set cmd = $buf:t
+set usage = "Usage: $cmd type\n"
+set debug = 0
+set print = 'print $1;'
+set remotehost=''
+
+set user = ${USER}
+
+# check flags...
+flag_check:
+
+if ( "$1" == "-debug" ) then
+    set debug = 1
+    shift
+    goto flag_check
+endif
+
+if ( "$1" == "-silent" ) then
+    set print = ''
+    shift
+    goto flag_check
+endif
+
+# verify args...
+if ( $#argv != 1 ) then
+    printf "$usage"
+    exit -1
+endif
+
+# parse arg...
+if ( $#argv >= 1 ) then
+    set type = $1
+    shift
+endif
+
+
+switch ($type)
+
+    # daemons...
+    case watch_dcs_rotator:
+	set psflags = -ef
+        set pattern = '$NF == "/kroot/rel/default/bin/watch_dcs_rotator"'	
+        set print = 'print $2;'
+	breaksw
+
+    case kcwidisplayb:
+	set psflags = -ef
+        set pattern = '$NF == "/kroot/rel/default/bin/kcwiDisplayb"'	
+        set print = 'print $2;'
+	breaksw
+
+    case kfcdisplay:
+	set psflags = -ef
+        set pattern = '$NF == "/kroot/rel/default/bin/kfcDisplay"'	
+        set print = 'print $2;'
+	breaksw
+
+    case magiqdisplay:
+	set psflags = -ef
+        set pattern = '$NF == "/kroot/rel/default/bin/magiqDisplay"'	
+        set print = 'print $2;'
+	breaksw
+
+    case kcwiConfManager
+	set psflags = -ef
+        set pattern = '$NF == "/kroot/rel/default/bin/kcwiConfManager.py"'
+        set print = 'print $2;'
+	breaksw
+
+    case keygrabber:
+        set psflags = -ef
+        set pattern = '$9 == "/kroot/rel/default/bin/keygrabber"'
+	set print = 'print $2;'
+	#set remotehost = 'kcwitar'
+	breaksw
+
+    case tkrose:
+	set psflags = axc
+	set pattern = '$NF == "tkrose"'
+	breaksw
+
+    case csuSetupAlert
+	set psflags = auxww
+	set pattern = '$NF == "mosfireAlertCsuSetupDone"'	
+        set print = 'print $2;'
+	breaksw
+
+    case csuMoveAlert
+	set psflags = auxww
+	set pattern = '$NF == "mosfireAlertCsuMoveDone"'	
+        set print = 'print $2;'
+	breaksw
+
+    default:
+	printf "ERROR in ${cmd}: no pattern defined for type $type\n"
+ 	exit 2
+endsw
+
+# check for running process...
+set command = "/usr/bin/ps ${psflags}"
+if ( $remotehost != '' ) then
+    set command = "ssh -l kcwidev ${remotehost} /usr/bin/ps ${psflags}"
+endif
+
+if ( $debug ) then
+    $command | gawk "BEGIN{n=1}${pattern}{print;n=0}END{exit n}"
+    exit $status
+else
+    $command | gawk "BEGIN{n=1}${pattern}{${print}n=0}END{exit n}"
+    exit $status
+endif

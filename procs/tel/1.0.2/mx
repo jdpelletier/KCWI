@@ -1,0 +1,69 @@
+#!/bin/csh -f
+#+
+#KCWI library of scripts
+#
+#NAME
+#       mx -- move telescope along rows in detector coordinate system
+
+#
+#SYNOPSIS
+#	mx x
+#
+#DESCRIPTION
+#	Offset the telescope a given number of arcsec in the
+#	coordinate system of the DEIMOS detector.  The offset is 
+#	relative to the current coordinaets by default
+#
+#ARGUMENTS
+#	x = offset in the direction parallel with CCD rows [arcsec]
+#
+#OPTIONS
+#
+#EXAMPLES
+#	1) Move telecope 10 arcsec along rows 
+#		mx 10 
+#	Note that since this is a *telescope* move, the target will
+#	"move" in the OPPOSITE direction!
+#
+#ENVIRONMENT VARIABLES
+#     list of environment variables used
+#
+#FILES
+#
+#SERVERS & KEYWORDS
+#
+#SCRIPTS CALLED
+#
+#     mxy
+#
+#EXIT STATUS
+#     0 - normal exit, no error
+#     1 - script aborted by an interrupt
+#     2 - syncheck error
+#     3 - error parsing command line input
+#     other errors...
+#
+#SEE ALSO
+#     ???
+#-
+#
+# Modification History:
+# 20110418 - MK: Original Version
+#
+#
+
+# check args...
+if (${#argv} != 1) then
+  echo "Usage: mx x"
+  exit 1
+endif
+
+# verify floating-point values...
+is_float $* > /dev/null
+if ( $status ) then
+  echo "ERROR -- Argument must be valid floating-point numbers"
+  exit 2
+endif
+
+# effect the move...
+mxy $1 0

@@ -1,0 +1,25 @@
+#!/bin/csh 
+#
+# +
+# 
+echo "********* Testing blue camera **********"
+tintb 0
+object TEST
+goib -dark
+echo "********* Testing focal plane camera ***"
+fpcamPower on
+tintfc 1
+goifpc
+printf "Check the blue camera and the focal plane camera images\n"
+printf "If they read out correctly, enter y otherwise enter n  [y/n] -> "
+set response = "$<"
+if( "$response" != "" && $response !~ y* && $response !~ Y* ) exit
+
+echo "*********** FOCUSING THE CAL UNIT *************"
+kcas_focus
+echo "*********** CENTERING THE CAL UNIT *************"
+kcas_find_offsets
+fpcamPower off
+echo "*********** FOCUSING THE BLUE CAMERA  *************"
+kcwi-focus
+echo "*********** ALL DONE *************"

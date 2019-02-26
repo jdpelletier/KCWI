@@ -1,0 +1,32 @@
+#!/bin/csh
+#
+# 170419
+# Matuszewski -- matmat@caltech.edu
+#
+# Wrapper for kcas_make_calfile.sh
+# 
+# 
+
+if ( $# != 1) then 
+    echo "Insufficient arguments"
+    echo "Usage: "
+    echo "makecalib <calibration_file.state>"
+    exit 1
+endif
+
+set state=$1
+set fname=$state
+
+if (`tolower $state` == current ) then
+    set outdir=`show -t -s kbds outfile`
+    set grating=`show -t -s kbes gname`
+    set cwave=`show -t -s kcwi bcwave`
+    set slicer=`show -t -s kcas ifuname`
+    set fname=${outdir}/state-`date -u +%y%m%d-%H%M%S`-${ifuname}-${grating}-${cwave}.state
+endif
+
+
+kcas_make_calfile.sh $fname
+
+date
+echo "Done with $1"

@@ -1,0 +1,51 @@
+#!/bin/csh -f
+#+
+# wait_wrapper -- execute script, wait, and exit
+#
+# Purpose:
+#	Execute the specified script, beep, and print "Done."
+#	Wait for user to press Enter before exiting when complete.
+#
+# Usage:
+#	wait_wrapper <commands>
+# 
+# Arguments:
+#	<commands> = shell script to be run in the window
+# 
+# Output:
+#	to stdout of new xterm window
+# 
+# Restrictions:
+#	None
+# 
+# Exit values:
+#	 0 = normal completion
+#	 1 = wrong number of arguments
+#
+# Example:
+#	1) Remotely execute the "ctx" command:
+#		xrsh punaluu xterm -e wait_wrapper ctx
+#
+#-
+# Modification history:
+#	2000-Aug-31	GDW	Original version
+#-----------------------------------------------------------------------
+
+# verify args...
+if ( $#argv < 1 ) then
+  set buf = $0
+  set cmd = $buf:t
+  echo "Usage: $cmd <commands>"
+  wait 3
+  exit 1
+endif
+
+# run the commands...
+$*
+
+# beep and wait...
+echo ""
+echo "Press <Enter> to exit..."
+set buf = $<
+exit
+

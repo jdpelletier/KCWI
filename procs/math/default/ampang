@@ -1,0 +1,98 @@
+#!/usr/bin/csh -f
+#+
+#KCWI library of scripts
+#
+#NAME
+#       ampang -- compute distance + bearing between two locations on KCWI image
+#
+#SYNOPSIS
+#	ampang x1 y1 x2 y2
+#
+# DESCRIPTION
+#	Given two (x,y) pixel locations measured on a KCWI image,
+#	compute the angular separation of the points and the angle
+#	between them.
+#    Output:
+#	The angular separation and angle (measured in various
+#	coordinate systems) are written to stdout.
+# 
+#Arguments:
+#	x1 = column of first position
+#	y1 = row of first position
+#	x2 = column of second position
+#	y2 = row of second position
+# 
+#OPTIONS
+#
+# EXAMPLES:
+#	1) Compute the offset and direction between an object at pixel
+#	(100,100) and another at (200,200):
+#
+#		> ampang 100 100 200 200
+#		Normal coordinate system (0 deg to right, 90 deg up):
+#		Amplitude = 30.2642 arcsec
+#		Angle     = 45 deg
+#		
+#		Astronomical coordinate system (0 deg up, 90 deg to left):
+#		Amplitude = 30.2642 arcsec
+#		Angle     = 315 deg
+#
+#ENVIRONMENT VARIABLES
+#
+#FILES
+#
+#SERVERS & KEYWORDS
+#     
+#
+#SCRIPTS CALLED
+#
+#
+#EXIT STATUS:
+#	0 = normal completion
+#	1 = wrong number of arguments
+#
+#-
+# Modification history:
+#	Date Unknown	???	Original version
+#	2000-Jul-05	GDW	Added description
+#	2012-Mar-12	MK	Modified for use with MOSFIRE
+#-----------------------------------------------------------------------
+
+set buf = $0
+set cmd = $buf:t
+set usage = "Usage: $cmd x1 y1 x2 y2"
+
+# verify args...
+if (${#argv} != 4) then
+  printf "$usage\n"
+  exit 1
+endif
+
+# define constants...
+set RtoD = `calc 180 / 3.1415926536`	# convert radians to degrees
+set scale = `show -s kcwi -terse pscale` # arcsec/pixel on KCWI
+
+# get variables...
+set x1 = $1
+set y1 = $2
+set x2 = $3
+set y2 = $4
+
+# compute offsets...
+set dx = `calc $x2 - $x1`
+set dy = `calc $y2 - $y1`
+set r = `calc "$scale * sqrt( ($dx)^2 + ($dy)^2)"`
+set theta = `calc "(atan2d($dy,$dx)+360)%360"`
+
+# output data for normal coordinate system...
+printf "Normal coordinate system (0 deg to right, 90 deg up):\n"
+printf "\tAmplitude = %.2f arcsec\n" $r
+printf "\tAngle     = %.2f deg\n" $theta
+
+# output data for astronomical coordinate system...
+# this will need to be updated when we know the instang
+set theta = `calc "($theta - 90 + 360)%360"`
+printf "\nAstronomical coordinate system (0 deg up, 90 deg to left):\n"
+printf "\tAmplitude = %.2f arcsec\n" $r
+printf "\tAngle     = %.2f deg\n" $theta
+

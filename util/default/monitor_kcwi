@@ -1,0 +1,5 @@
+#!/bin/tcsh -f
+
+xshow -s kcwi progname statenam stateid &
+xshow -s kbds object observer imtype &
+xshow -s dcs guidwave targwave -s magiq daronoff &

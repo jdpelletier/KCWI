@@ -1,0 +1,85 @@
+#!/bin/sh
+
+PARAMDEFINITION="\
+ARC_INIT,int,,1,0:1,ARC Init Success? Yes/No\n\
+ARC_SETUP,int,,1,0:1,ARC Setup Success? Yes/No\n\
+ELAPTIME,float,s,0.,0.:3600.,Elapsed Exposure Time (s)\n\
+EXPOSIP,int,,1,0:1,Exposure in Progress? Yes/No\n\
+EXPPROG,int,,0,0:100,Exposure Progress (%)\n\
+NUMCLOS,int,,0,0:1000,Number of Shutter Closes Since Erase\n\
+NUMOPEN,int,,0,0:1000,Number of Shutter Opens Since Erase\n\
+PAUSEIP,int,,1,0:1,Pause in Progress? Yes/No\n\
+PIXCOUNT,int,px,1,0:10000000,Pixel Count of Current Readout\n\
+PIXPERCENT,int,%,0,0:100,Percent Complete of Current Readout\n\
+RDOUTIP,int,,1,0:1,Readout in Progress? Yes/No\n\
+SHUTTER,int,,1,0:1,Shutter Open? Yes/No\n\
+TELAPSE,float,s,0.,0.:3600.,Duration from Clear to Readout (s)\n\
+"
+
+
+reportStatus()
+{
+    echo "EXECSTATUS=$1"
+	shift
+	echo 'STATUSMSG="'$*'"'
+}
+
+handleQueryParam()
+{
+	for p in $* 
+	do
+		case $p in
+		queryparam*) 
+		    reportStatus OK Listing script parameters
+			/bin/echo -e  "$PARAMDEFINITION"
+			exit 0
+			;;
+		esac
+		shift
+	done
+}
+
+checkParameters()
+{
+	# Check input
+	if [ $# != 1 ]
+	then
+		echo "ERROR Only one status item can be queried at a time"
+		exit 0
+	fi
+
+	KEYWORD=$*
+	export KEYWORD
+}
+
+performAction()
+{
+	if [ ${#KEYWORD} -gt 1 -a ${#KEYWORD} -lt 24 ]
+	then
+		# Show params
+		show -s kbds $KEYWORD
+	else
+		# Error
+		echo "ERROR: Bad keyword"
+	fi
+	return $?
+
+}
+
+# ***********************************************************
+# Main part
+# ***********************************************************
+
+handleQueryParam $*
+
+checkParameters $*
+
+OUTPUT=`performAction`
+
+if [ $? != 0 ]
+then
+    reportStatus ERROR Something went wrong
+else
+    reportStatus OK Success
+	echo "$OUTPUT"
+fi

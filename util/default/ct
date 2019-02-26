@@ -1,0 +1,252 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#	ct - list KCWI running tasks
+#
+# SYNOPSIS
+#	ct
+#
+# DESCRIPTION
+#       Search the process table for various tasks of interest to KCWI
+#	and generate a list of owners, PIDs, and process names
+#
+# RESTRICTIONS
+#	None
+#
+# OPTIONS
+#       None
+#
+# EXAMPLES
+#	1) List KCWI tasks:
+#		ct
+# OUTPUT
+#	kcwidev (kcwiserver) runs the global server, motor servers(4), pressure servers(2), power
+#	servers(2), temperature control server.
+#	
+#	Under normal conditions, -2- of each type will be running.
+#	=======================================================================
+#	username    pid    service
+#	--------    ---    -------
+#
+# ENVIRONMENT VARIABLES
+#	None
+#
+# FILES
+#	None
+#
+# SERVERS & KEYWORDS
+#
+# SCRIPTS CALLED
+#	None
+#
+# EXIT STATUS
+#
+# SEE ALSO
+#     ???
+#-
+#
+# Modification History:
+#	Date Unknown	JWeiss	Original version
+#	2014-Jan-06	JEL/GDW	Fix output formats
+#------------------------------------------------------------------------------
+
+# Set the hostname.
+set cthost = `/bin/hostname`
+
+    set sshuser=$USER
+
+switch ($cthost)
+  case vm-KCWIserver:
+  case kcwiserver:
+  case kcwibuild:
+cat <<END1
+
+$cthost (kcwiserver) runs the global server(1), mech servers(4), 
+pressure servers(2), power servers(3), temperature control servers(2)
+
+(kcwitarg) runs the detector server(1)
+
+Under normal conditions, -1- of each type will be running.
+=======================================================================
+END1
+  breaksw
+
+  case kcwitarg:
+  case kcwitarg2:
+cat << END2
+
+$cthost runs the Detector server. Under normal conditions,
+-1- server processes will be running.
+=================================================================
+
+END2
+  breaksw
+
+endsw
+
+
+# Add search strings to this using the existing lines as a template.
+# Notice that you can include spaces within the search string.
+# Construction of the final, overall search string should not disturb
+# those spaces.
+
+set search_list = ( \
+	"_service" \
+)
+
+set search_list_gui = ( \
+	"edu/caltech/srl/kcwi/kdesktop/KDesktop" \
+	"edu.ucla.astro.irlab.util.gui.builder.GUILauncher" \
+)
+
+set search_list_python = ( \
+	"kcwiDisplayb" \
+	"kfcDisplay" \
+	"magiqDisplay" \
+	"kcwiConfManager.py" \
+)
+
+set search_list_exe = ( \
+	"watch_dcs_rotator" \
+)
+
+set search_list_keygrabber = (\
+	"keygrabber -c" \
+)
+
+# Create the search string.
+set Nargs = $#search_list
+set index = 1
+set search_string = $search_list[1]
+
+while ($index < $Nargs)
+    @ index++
+    set search_string = "${search_string}|$search_list[$index]"
+end
+
+# Create the GUI search string.
+set NargsGui = $#search_list_gui
+set indexGui = 1
+set search_string_gui = $search_list_gui[1]
+
+while ($indexGui < $NargsGui)
+    @ indexGui++
+    set search_string_gui = "${search_string_gui}|$search_list_gui[$indexGui]"
+end
+
+# Create the python search string.
+set NargsPython = $#search_list_python
+set indexPython = 1
+set search_string_python = $search_list_python[1]
+
+while ($indexPython < $NargsPython)
+    @ indexPython++
+    set search_string_python = "${search_string_python}|$search_list_python[$indexPython]"
+end
+
+# Create the exe search string.
+set NargsExe = $#search_list_exe
+set indexExe = 1
+set search_string_exe = "$search_list_exe[1]"
+
+# Create the keygrabber search string.
+set NargsKey = $#search_list_keygrabber
+set indexKey = 1
+set search_string_keygrabber = "$search_list_keygrabber[1]"
+
+while ($indexExe < $NargsExe)
+    @ indexExe++
+    set search_string_exe = "'${search_string_exe}'|'$search_list_exe[$indexExe]'"
+end
+
+echo "username    pid    service"
+echo "--------    ---    -------"
+
+set format = "%-8s %8d - %s\n"
+
+switch ($cthost)
+  case kcwidev:
+  case kcwidev2:
+  case vm-KCWIserver:
+  case kcwiserver:
+
+    # note that we can use the shell var "$search_string" 
+    # by placing it "outside" the single quotes
+    /bin/ps -eo "user pid args" | \
+    awk '/kcwi_service/{next}/'$search_string'/ && $3 !~ /awk/ { \
+    printf "%-8s %8d - %s\n",$1,$2,$7}' | \
+    sort -k 3
+    
+    /bin/ps -eo "user pid args" | \
+    awk '/kcwi_service/ && $3 !~ /awk/ && $3 !~ /sed/ { \
+    printf "%-8s %8d - %s\n",$1,$2,$7}' | \
+    sed 's/kcwi_io_functions/kcwi_global_server/' | \
+    sort -k 3
+
+# The extra "w" on ps auxww adds considerable time to execution.
+    /bin/ps auxww | \
+    egrep "$search_string_gui" | \
+    egrep -v " sed" | egrep -v " grep" | \
+    egrep "java" | \
+    sed 's/java.*KDesktop./Gui-KDesktop /' | \
+    sed 's/cfg=//' | \
+    sed 's/java.*GUILauncher./Gui-GUILauncher /' | \
+    awk '{ printf "%-8s %8d - %s-%s\n",$1,$2,$11,$12 }' | sort -k 3
+
+# The extra "w" on ps auxww adds considerable time to execution.
+    /bin/ps auxww | \
+    egrep "$search_string_python" | \
+    egrep -v " sed" | egrep -v " grep" | \
+    sed 's/python.*kcwiDisplayb.*/python-autodisplay/' | \
+    sed 's/python.*kfcDisplay.*/python-fcdisplay/' | \
+    sed 's/python.*magiqDisplay.*/python-magiqdisplay/' |\
+    awk '{ printf "%-8s %8d - %s\n",$1,$2,$NF }' | sort -k 3
+
+# The extra "w" on ps auxww adds considerable time to execution.
+    /bin/ps auxww | \
+    egrep "$search_string_exe" | \
+    egrep -v " sed" | egrep -v " grep" | \
+    sed 's/\/.*watch_dcs_rotator.*/watchrot/' | \
+    sed 's/pts//' | \
+    awk '{ printf "%-8s %8d - %s\n",$1,$2,$NF }' | sort -k 3
+
+    /bin/ps auxww | \
+    grep "keygrabber -c" | egrep -v " sed" | egrep -v " grep" | awk '{printf "%-8s %8d - %s\n",$1,$2,"keygrabber" }'
+
+
+# SSH to kaimana to get detector status
+
+
+        ssh -l $sshuser kcwitarg ct | tail -n +8
+        #ssh -qtl $sshuser kcwitarg ct | tail -n +8
+
+
+
+  breaksw
+
+  case kcwitarg:
+  case kcwitarg2:
+
+    /bin/ps -eo "user pid args" | \
+    awk '/kcwi_service/{next}/'$search_string'/ { \
+    printf "%-8s %8d - %s\n",$1,$2,$7}' | \
+    sort -k 3
+
+# The extra "w" on ps auxww adds considerable time to execution.
+    #/bin/ps auxww | \
+    #grep "keygrabber -c" | \
+    #grep -v " sed" | egrep -v " grep" | \
+    #sed 's/\/.*keygrabber.*/keygrabber/' | \
+    #sed 's/pts//' | \
+    #awk '{ printf "%-8s %8d - %s\n",$1,$2,$7 }' | sort -k 3
+    #awk '{ printf "%s",$0}'
+
+#    echo
+#    echo "Run this script from nuu (kcwiserver) for status on"
+#    echo "the other servers."
+#    echo
+  breaksw
+
+endsw

@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en" ng-app="myApp">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <link rel="icon" href="../../favicon.ico">
+
+    <title>KCWI Configuration Manager</title>
+
+    <!-- Bootstrap core CSS -->
+    <link href="{{ url_for('static', filename='css/bootstrap.min.css')}}" rel="stylesheet">
+    <!--<link href="css/bootstrap.min.css" rel="stylesheet"> -->
+    <!-- Custom styles for this template -->
+    <link href="{{ url_for('static', filename='css/jumbotron-narrow.css')}}" rel="stylesheet">
+
+
+    <script src="{{ url_for('static', filename='js/angular.js')}}"></script>
+
+    <script src="{{ url_for('static', filename='js/kcwiConfManager.js')}}"></script>
+
+
+</head>
+
+<body ng-controller="HomeCtrl">
+
+<!-- title -->
+
+<div class="container-fluid" style="width:80%">
+  <div class="header clearfix">
+    <h3 class="text-muted">KCWI Configuration Manager</h3>
+
+    <nav>
+      <ul class="nav nav-pills pull-right">
+        <li role="presentation" class="active"><a href="#AddButton" data-toggle="modal" ng-click="showAddPopUp()" >Add Configuration</a></li>
+        <li role="presentation" class="active"><a href="#SelectButton" data-toggle="modal" ng-click="showProgPopUp()" >Select Program</a></li>
+      </ul>
+    </nav>
+    <h4>Selected program: {{'{{progname}}'}}</h4>
+  </div>
+
+
+<!-- main panel with the list of configurations -->
+
+<div class="bs-example" data-example-id="panel-without-body-with-table">
+  <div class="panel panel-primary panel-resizable" style="width:100%">
+    <div class="panel-heading">Configuration list</div>
+    <div class="table-responsive">
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Name</th>
+            <th>Slicer</th>
+            <th>Blue Filter</th>
+            <th>Blue Grating</th>
+            <th>CWaveB</th>
+            <th>PWaveB</th>
+	    <th>Binning</th>
+	    <th></th>
+	    <th></th>
+	    <th></th>
+	    <th></th>
+	    <th></th>
+	    <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr ng-repeat="configuration in configurations track by $index">
+            <th scope="row">{{'{{$index+1}}'}}</th>
+            <td>{{ '{{configuration.statenam}}' }}</td>
+            <td>{{ '{{configuration.image_slicer}}' }}</td>
+            <td>{{'{{configuration.filterb}}'}}</td>
+            <td>{{'{{configuration.gratingb}}'}}</td>
+            <td>{{'{{configuration.cwaveb}}'}}</td>
+            <td>{{'{{configuration.pwaveb}}'}}</td>
+	    <td>{{'{{configuration.binningb}}'}}</td>
+            <td><span style="cursor:pointer;" ng-click="editDetector(configuration.id)" class="glyphicon glyphicon-camera" aria-hidden="true"></span></td>
+            <td><span style="cursor:pointer;" ng-click="editCalunit(configuration.id)" class="glyphicon glyphicon-flash" aria-hidden="true"></span></td>
+            <td><span style="cursor:pointer;" ng-click="editConfiguration(configuration.id)" class="glyphicon glyphicon-pencil" aria-hidden="true"></span></td>
+            <td><span style="cursor:pointer;" ng-click="duplicateConfiguration(configuration.id)" class="glyphicon glyphicon-duplicate" aria-hidden="true"></span></td>
+	    <td><span style="cursor:pointer;color:#e43309;" ng-click="confirmDelete(configuration.id)" class="glyphicon glyphicon-remove" aria-hidden="true"></span></td>
+            <td><span style="cursor:pointer;color:#3c763d;" ng-click="saveConfiguration(configuration.id)" class="glyphicon glyphicon-save" aria-hidden="true"></span></td>
+	    <td><span style="cursor:pointer;color:#3c763d;" ng-click="confirmExecute(configuration.id,configuration.statenam)" class="glyphicon glyphicon-play" aria-hidden="true"></span></td>
+          </tr>
+
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- additional buttons for saving states and generating calibrations -->
+<!-- <div ng-if='progname'> -->
+<!-- <nav> -->
+<!--   <ul class="nav nav-pills pull-left"> -->
+<!--     <li role="presentation" class="active"><a href="#SaveAllButton" data-toggle="modal" ng-click="saveAll()" >Save all states</a></li> -->
+<!--     <li role="presentation" class="active"><a href="#GenerateCalsButton" data-toggle="modal" ng-click="generateCalsPopup()" >Generate calibration files</a></li> -->
+<!--     <li role="presentation" class="active"><a href="#RunCalsButton" data-toggle="modal" ng-click="runCalsPopup()" >Run calibrations</a></li> -->
+<!--   </ul> -->
+<!-- </nav> -->
+<!-- <br> -->
+<!-- </div> -->
+
+
+<!-- File loader/reader -->
+
+<div ng-if='progname'> <h3>Load state file</h3>
+  <input type="file" id="statefile" on-read-file="showContent($fileContent)" />
+  <div ng-if='content'>
+    <h3>File content is:</h3>
+    <pre>{{ '{{content'}} }}</pre>
+  </div> 
+  <div> 
+    <button ng-if='content' id="btnLoad" ng-click="loadConfiguration()" type="button" class="btn btn-primary">Load configuration</button>
+  </div>
+
+
+<div>
+  <h3> Message: {{'{{message}}'}}</h3></div>
+</div>
+
+
+<!-- program selection popup -->
+
+<div id="progPopUp" class="modal fade bs-example-modal-md in" tabindex="-1" role="dialog" aria-labelledby="myLargeModalLabel">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header"> <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">×</span></button>
+	<h4 class="modal-title" id="myLargeModalLabel">Please enter the ID of your observing program</h4> </div>
+      
+      <div class="modal-footer">
+        <input type="text" class="form-control" ng-keypress="keyEnter($event)" ng-model="progname" id="txtProgramCode">
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- test of generating calibrations -->
+
+<!-- <div class="modal fade" id="runCalsPopup" role="dialog" aria-labelledby="exampleModalLabel"> -->
+<!--   <div class="modal-dialog" role="document"> -->
+<!--     <div class="modal-content"> -->
+<!--       <div class="modal-header"> -->
+<!--         <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button> -->
+<!--         <h4 class="modal-title" id="exampleModalLabel" >Select configurations:</h4> -->
+<!--       </div> -->
+<!--       <div class="modal-body"> -->
+<!--         <form> -->
+<!--           <div class="form-group" -->
+<!--                <label for="txtConfigurations" class="control-label"> Configurations:</label> -->
+<!--                <select multiple type="text" class="form-control" ng-model="selected_configurations" ng-options="x['statenam'] for x in configurations" id="txtConfigurations"></select> -->
+<!--           </div> -->
+<!--         </form> -->
+<!--       </div> -->
+<!--       <div class="modal-footer"> -->
+<!-- 	<button id="btnCalibrate" ng-click="Calibrate()" type="button" class="btn btn-primary">Calibrate</button> -->
+
+<!--     </div> -->
+<!--   </div> -->
+<!-- </div> -->
+
+<!-- Create a new configuration (POPUP) --> 
+
+<div class="modal fade" id="addPopUp" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title" id="exampleModalLabel" >Add configuration info</h4>
+      </div>
+      <div class="modal-body">
+        <form>
+          <div class="form-group">
+            <label for="txtName" class="control-label">Configuration Name:</label>
+            <input type="text" class="form-control" ng-model="info.statenam" id="txtName">
+          </div>
+          <div class="form-group">
+               <label for="txtSlicer" class="control-label">Slicer:</label>
+               <select type="text" class="form-control" ng-model="info.image_slicer" ng-options="x for x in slicers" id="txtSlicer"></select>
+	  </div>
+          <div class="form-group">
+               <label for="txtBlueFilter" class="control-label"> Blue Filter:</label>
+               <select type="text" class="form-control" ng-model="info.filterb" ng-options="x for x in filters" id="txtBluefilter"></select>
+          </div>
+          <div class="form-group">
+               <label for="txtBlueGrating" class="control-label"> Blue Grating:</label>
+               <select type="text" class="form-control" ng-model="info.gratingb" ng-options="x for x in gratings" id="txtBlueGrating"></select>
+          </div>
+          <div class="form-group">
+	    <label for="txtCwaveB" class="control-label">Cwave:</label>
+	    <input type="text" class="form-control" ng-model="info.cwaveb" id="txtCwave">
+	  </div>
+	  <div class="form-group">
+	    <label for="txtPwaveB" class="control-label">Pwave:</label>
+	    <input type="text" class="form-control" ng-model="info.pwaveb" id="txtPwave">
+	  </div>
+	  <div class="form-group">
+	    <label for="txtcamangleB" class="control-label">Camera Angle:</label>
+	    <input type="text" class="form-control" ng-model="info.camangleb" id="txtcamangleb">
+	  </div>
+	  <div class="form-group">
+	       <label for="txtNsmaskb" class="control-label">N&S mask B:</label>
+	       <select type="text" class="form-control" ng-model="info.nsmaskb" ng-options="x for x in maskpositions" id="txtNsmaskb"></select>
+	  </div>
+	  <div class="form-group">
+	    <label for="txtfocusB" class="control-label">Focus:</label>
+	    <input type="text" class="form-control" ng-model="info.focusb" id="txtfocusb">
+	  </div>                        
+	</form>
+      </div>
+
+      <div class="modal-footer">
+	<button id="btnDefaultDetector" ng-click="DefaultDetector()" type="button" class="btn btn-primary">Default Det. Conf.</button>
+	<button id="btnDefaultCalUnit" ng-click="DefaultCalUnit()" type="button" class="btn btn-primary">Default Cal. Unit</button>
+        <button type="button"  class="btn btn-default" data-dismiss="modal">Close</button>
+        <button ng-show="showAdd" id="btnAdd" ng-click="addConfiguration()" type="button" class="btn btn-primary">Add configuration</button>
+        <button ng-show="!showAdd" id="btnAdd" ng-click="updateConfiguration()" type="button" class="btn btn-primary">Update</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Additional popup for detector information -->
+
+<div class="modal fade" id="detectorPopUp" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title" id="exampleModalLabel" >Detector info</h4>
+      </div>
+      <div class="modal-body">
+        <form>
+          <div class="form-group">
+            <label for="txtGainmulb" class="control-label">Gain Multiplier:</label>
+            <input type="text" class="form-control" ng-model="info.gainmulb" id="txtGainmulb">
+          </div>                        
+          <div class="form-group">
+            <label for="txtCcdmodeb" class="control-label">CCD mode:</label>
+            <input type="text" class="form-control" ng-model="info.ccdmodeb" id="txtCcdmodeb">
+          </div>                        
+          <div class="form-group">
+            <label for="txtAmpmodeb" class="control-label">Amplifier mode:</label>
+            <input type="text" class="form-control" ng-model="info.ampmodeb" id="txtAmpmodeb">
+          </div>                        
+          <div class="form-group">
+            <label for="txtBinningb" class="control-label">Binning:</label>
+            <input type="text" class="form-control" ng-model="info.binningb" id="txtBinning">
+          </div>                        
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button"  class="btn btn-default" data-dismiss="modal">Close</button>
+        <button id="detectorAdd" ng-click="updateConfiguration()" type="button" class="btn btn-primary">Update</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- additional popul for calibration units --> 
+
+<div class="modal fade" id="calunitPopUp" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title" id="exampleModalLabel" >Detector info</h4>
+      </div>
+      <div class="modal-body">
+        <form>
+          <div class="form-group">
+            <label for="txtCalmirror" class="control-label">Calibration Mirror:</label>
+            <input type="text" class="form-control" ng-model="info.cal_mirror" id="txtCalmirror">
+          </div>                        
+          <div class="form-group">
+            <label for="txtPolarizer" class="control-label">Polarizer:</label>
+            <input type="text" class="form-control" ng-model="info.polarizer" id="txtPolarizer">
+          </div>                        
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button"  class="btn btn-default" data-dismiss="modal">Close</button>
+        <button id="calunitAdd" ng-click="updateConfiguration()" type="button" class="btn btn-primary">Update</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- popup to confirm DELETE --> 
+
+<div id="deleteConfirm" class="modal fade bs-example-modal-md in" tabindex="-1" role="dialog" aria-labelledby="myLargeModalLabel">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header"> <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">×</span></button>
+	<h4 class="modal-title" id="myLargeModalLabel">You are about to delete this entry. Do you want to proceed ?</h4> </div>
+      
+      <div class="modal-footer">
+	<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+	<button type="button" ng-click="deleteConfiguration()" class="btn btn-primary">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- popup to confirm EXECUTE --> 
+
+<div id="executeConfirm" class="modal fade bs-example-modal-md in" tabindex="-1" role="dialog" aria-labelledby="myLargeModalLabel">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header"> <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">×</span></button>
+	<h4 class="modal-title" id="myLargeModalLabel">You are about to execute this entry: {{'{{executeConfigurationName}}'}}</h4>
+	<h4 class="modal-title">Do you want to proceed?</h4>
+      </div>
+      <div class="modal-footer">
+	<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+	<button type="button" ng-click="executeConfiguration()" class="btn btn-primary">Execute</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+<script src="static/js/jquery.min.js"></script>
+<script src="static/js/bootstrap.min.js"></script>
+
+</body>
+
+</html>

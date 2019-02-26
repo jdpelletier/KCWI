@@ -1,0 +1,103 @@
+#!/bin/csh -f
+#+
+#KCWI library of scripts
+#
+#NAME
+#       pmfm -- set the amount of focus mode in the telescope primary
+#
+# Purpose: set primary mirror focus mode
+#
+#SYNOPSIS
+#     pmfm #
+#
+#DESCRIPTION
+#	With no argument, show the currently amount of primary mirror
+#	focus mode.  With a argument, set the amount of primary mirror
+#	focus mode to the specified number of nanometers.
+#     script_name - brief description of script function
+#
+#OPTIONS
+#
+#EXAMPLES
+# Example:
+#	1) show the current amount of pmfm:
+#		pmfm
+#
+#	2) apply 500 nm of primary mirror focus mode:
+#		pmfm 500
+# 
+# 	3) make pmfm change in background:
+#		pmfm 500 </dev/null &
+#
+#ENVIRONMENT VARIABLES
+#     list of environment variables used
+#
+#FILES
+#     list of files used
+#
+#SERVERS & KEYWORDS
+#     service = acs
+#          pmfm: primary mirror focus mode
+#
+#SCRIPTS CALLED
+#     help, syncheck
+#
+#EXIT STATUS
+#     0 - normal exit, no error
+#     1 - script aborted by an interrupt
+#     2 - syncheck error
+#     3 - error parsing command line input
+#     other errors...
+#
+#SEE ALSO
+#     ???
+#-
+#
+# Modification History:
+# 20041124 - MB: Original Version
+#
+
+set cmd = `basename $0`
+
+# check args...
+if (${#argv} > 1) then
+  echo "Usage: pmfm [x]"
+  exit 1
+endif
+if (${#argv} == 1) then
+    set want = $1
+    shift
+endif
+
+set rcmd = "ssh k2ruts@k2server "
+
+# set/show the amount of pmfm...
+if ( $?want ) then
+    @ i = 0
+    @ imax = 10
+    while (1)
+
+	# send move request...
+	$rcmd modify -s acs pmfm = $want
+
+	# pause to allow keyword value to change...
+	sleep 1
+	set buf = `$rcmd show -s acs -terse pmfm`
+	set got = `printf '%.0f' $buf`
+	set want2 = `printf '%.0f' $want`
+	if ( "$got" == "$want2" ) break
+
+	# give up if max attempts exceeded...
+	if ( $i > $imax ) then
+	    printf "[$cmd] ERROR: maximum tries exceeded -- abort!\n\a"
+	    exit 1
+	endif
+	@ i++
+
+	# try again...
+	printf "[$cmd] WARNING: requested PMFM=$want but got PMFM=$got -- trying again!\n"
+	sleep 1
+    end
+else
+    printf '%f\n' `$rcmd show -s acs -terse pmfm`
+endif

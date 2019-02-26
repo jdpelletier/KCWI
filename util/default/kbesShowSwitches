@@ -1,0 +1,35 @@
+alias ss="show -s kbes"
+modify -s kbes getstatus=1
+echo Filter ID Switch
+ss fidsw
+ss FIDSW01
+ss FIDSW02
+ss FIDSW03
+ss FIDSW04
+ss FIDSW05
+ss FIDSW06
+ss FIDSW07
+ss FIDSW08
+
+echo Grating ID Switch
+ss gidsw
+ss GIDSW01
+ss GIDSW02
+ss GIDSW03
+ss GIDSW04
+ss GIDSW05
+ss GIDSW06
+ss GIDSW07
+ss GIDSW08
+
+echo "Cassette home switches (1=homed)"
+ss CAFSW01
+ss CAFSW02
+ss CAFSW03
+ss CAFSW04
+ss CAFSW05
+ss CAGSW01
+ss CAGSW02
+ss CAGSW03
+ss CAGSW04
+ss CAGSW05

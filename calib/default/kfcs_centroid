@@ -1,0 +1,42 @@
+#!/bin/tcsh
+#
+# 160428
+# Matuszewski -- matmat@caltech.edu
+#
+# Execute kfcs_centroid.py and print the centroid result
+#
+# Usage: 
+#     kfcs_centroid spot_filename dark_filename
+#
+# Note that this isn't particularly robust at the moment.
+#
+# Check for proper number of parameters
+if ( ( $# != 2 ) ) then
+    exit -1
+endif
+
+set ang=0
+
+# run the python code
+set res= ( `kfcs_centroid.py $1 $2 $ang | grep INTCENTROID` )
+set sv_status=$status
+if ( $sv_status  ) then
+    echo "Exiting with $sv_status" >> /dev/stderr
+    exit $sv_status
+endif
+
+if ( $#res != 4) then
+    exit -2
+endif
+
+set xcen = $res[2]
+set ycen = $res[3]
+set weight = $res[4]
+
+echo $xcen $ycen $weight
+
+exit 0
+### 
+
+
+

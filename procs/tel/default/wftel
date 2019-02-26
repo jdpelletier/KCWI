@@ -1,0 +1,136 @@
+#!/usr/bin/sh
+#+
+# KCWI library of scripts
+#
+# NAME
+#	wftel -- wait for telescope move to complete
+#
+# SYNOPSIS
+#       wftel
+#
+# DESCRIPTION
+#	Second method is to monitor the pause and resume events. After
+#	issuing the offset request, we need to monitor the keyword
+#	AUTPAUSE to increment its sequence number. Then we monitor the
+#	keyword AUTGO to change to RESUMEACK, which is issued by the
+#	guider. At this point, the guider will throws away the first
+#	image and resume guiding with the next image. The
+#	offsetting/nodding script can terminate at this point also,
+#	without waiting for guiding to fully resume. Because TCS
+#	internally waits for AXESTAT to go from SLEWING to TRACKING
+#	before sending the RESUME notification, we assume that the
+#	telescope is at the correct position by the time the guider
+#	acknowledges the RESUME notification. This will save more time
+#	one more guider cycle than the first method at the risk that
+#	the guide star may be not at the final destination. This can
+#	happen if the plate scale is not correct (i.e. at the edges of
+#	the guider detector) and the guide box goes to a different
+#	place than the guide star image. The first guider image after
+#	the offset will drag the star to where the guide box is.
+#
+# ARGUMENTS
+#	None
+# 
+# EXIT STATUS
+#
+# EXAMPLES
+#
+#-
+# Modification history:
+#	Date unknown	SHK	Initial version
+#	2013-Oct-01	MK/GDW	
+#	2013-Oct-13	MK/GDW	Add check for telescope slewing
+#-----------------------------------------------------------------------
+
+cmd=`basename $0`
+usage="Usage: $cmd"
+
+# wait for slew to end...
+waitfor -s dcs axestat=tracking
+
+# check whether autoguider is active...
+active=`show -s dcs -terse AUTACTIV`
+if [ "$active" = "no" ]
+then
+    printf "[$cmd] WARNING: guider not currently active\n\a"
+    exit 1
+fi
+
+#----------------------------------------
+# wait for AUTPAUSE to increment...
+#----------------------------------------
+
+#set the value for the current autpause 
+if [ $# = 1 ] 
+then 
+  i=$1
+else  
+  i=`show -s dcs -terse autresum 2>/dev/null`
+fi
+
+count=0
+timeout=20 # max guider exposure time
+
+# cycle until the cycle number increments or the timeout is reached...
+
+while [ 1 ]
+do
+    # check new cycle number...
+    j=`show -s dcs -terse autresum 2>/dev/null`
+    
+    # if it has changed, then continue...
+    if [ $i -ne $j ]
+    then
+	break
+    fi
+    
+    # increment counter
+    count=`expr $count + 1`
+    
+    # check whether we have exceeded the timeout...
+    if [ $count -ge $timeout ]
+    then
+	printf "[$cmd] WARNING: timeout waiting for AUTRESUM to increment\n\a"
+	break
+    fi
+    
+    # pause before continue...
+    sleep 1
+done
+
+#----------------------------------------
+# monitor the keyword AUTGO to change to RESUMEACK, 
+# which is issued by the guider 
+#----------------------------------------
+
+count=0
+timeout=20 # max guider exposure time
+desired1="RESUMEACK"
+desired2="GUIDE"
+while [ 1 ]
+do
+
+   # check new cycle number...
+    autgo=`show -s dcs -terse autgo 2>/dev/null | toupper`
+
+    # if it has the desired value, then continue...
+    if  [ "$autgo" = "$desired1" ] || [ "$autgo" = "$desired2" ] 
+    then
+	break
+    fi
+	
+    # increment counter
+    count=`expr $count + 1`
+
+    # check whether we have exceeded the timeout...
+    if [ $count -ge $timeout ]
+    then
+	printf "[$cmd] WARNING: timeout waiting for AUTGO to be $desired\n\a"
+	break
+    fi
+    
+    # pause before continue...
+    sleep 1
+done
+
+exit

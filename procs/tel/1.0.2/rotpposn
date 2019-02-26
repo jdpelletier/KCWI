@@ -1,0 +1,90 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#       rotpposn -- set or show the instrument rotator physical position angle
+#
+# SYNOPSIS
+#	rotposn angle
+# 
+# DESCRIPTION
+#	With no arguments, show the current physical position angle of 
+#	the MOSFIRE rotator.  With one numeric argument, put the
+#	instrument rotator into physical position angle mode at the
+#	given position angle
+#
+#	If angle is not within the legal range of -239<x<189, it is 
+#	changed to be within this range by adding or subtracting 360.
+#
+# ARGUMENTS
+#	angle = physical rotator position angle to set [deg]
+# 
+# OPTIONS
+#
+# EXAMPLES
+#	1) Show the current rotator physical position angle:
+#		rotpposn
+#	2) Set the rotator to physical position of 1.2345 deg:
+#		rotpposn 1.2345
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#      dcs: rotmode, rotdest, rotstat
+#
+# SCRIPTS CALLED
+#
+# EXIT STATUS
+#	0 = normal completion
+#	1 = wrong number of arguments
+#
+# Modification history:
+#	2011apr27	MK	Original version
+#-------------------------------------------------------------
+
+set cmd = `basename $0`
+set usage = "Usage: $cmd [angle]"
+set min_angle = -271.50
+set max_angle = 242.10
+
+# verify args...
+if ( $#argv > 1 ) then
+  printf "$usage\n\a"
+  exit 1
+endif
+
+# parse args...
+if ( $#argv >= 1 ) then
+    set angle = $1
+    shift
+endif
+
+# take appropriate action...
+if ( ! $?angle ) then
+    show -s dcs -terse rotpposn
+    exit 
+endif
+
+# verify floating-point values...
+is_float $angle > /dev/null
+if ( $status ) then
+  printf "[$cmd] ERROR: argument $angle must be valid floating-point number -- abort!\n\a"
+  exit 2
+endif
+
+# convert angle to legal range (-180 to +180)...
+# gawk "BEGIN{if($angle<$min_angle || $angle>$max_angle){exit 1}else{exit 0}}"
+# if ( $status ) then
+#     set angle = `calc "(($angle+540)%360)-180"`
+#     printf "WARNING: requested angle %g not legal; using %g instead...\n" 
+#	$1 $angle
+# endif
+
+printf "Moving KCWI k-mirror rotator to $angle degrees...\n"
+modify -s dcs rotdest=$angle rotmode="stationary" wait
+sleep 1
+waitfor -s dcs rotstat=tracking
+exit

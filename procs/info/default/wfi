@@ -1,0 +1,127 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#	wfi -- wait for new MOSFIRE image to be written to disk
+#
+# SYNOPSIS
+#	wfi [-nowait] [-silent] [image]
+#
+# DESCRIPTION
+#	With no argument, wait for a new image to be written to disk 
+#	in the output directory, and print the name of the image to STDOUT.
+#	With an argument, loop until the named image is written to disk.
+#	Full image name is written to stdout.
+#	- If started during image readout, will not return the current image
+#
+# ARGUMENTS
+#	-nowait = do not wait if image not in progress; return immediately
+#	-silent = do not print image name
+#	image = name of the image for which to wait.  This should be 
+#		the TAIL of the filename only (omit directory component)
+#
+# OPTIONS
+#
+# EXAMPLES
+#	1) Wait until next image has been written to disk:
+#		wfi
+# 
+#	2) Wait until image d0813_0032.fits has been written to disk:
+#		wfi m0813_0032.fits
+# 
+# 	3) Wait only if an image is being taken...
+#		wfi -n
+#
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#
+# SCRIPTS CALLED
+#
+# EXIT STATUS
+#	0 = normal completion
+#	1 = wrong number of arguments
+# SEE ALSO
+#-
+#
+# Modification history:
+#	2001-Jul-25	GDW	Original version
+#	2002-Aug-13	GDW	Extensive mods
+#	2002-Oct-04	GDW	Removed exposip checks
+#       2012-mar-01	MK	Modified for use with MOSFIRE
+#
+#-----------------------------------------------------------------------
+
+set buf = $0
+set cmd = $buf:t
+set usage = "Usage: $cmd [-silent] image"
+set verb = 1
+set image = default
+
+# parse flags...
+while ( $#argv > 0 )
+
+  # check for -nowait flag...
+  if ( "$1" =~ \-n* ) then
+    set nowait=1
+    shift
+    continue
+  endif
+
+  # check for silent flag...
+  if ( "$1" =~ \-s* ) then
+    set verb = 0
+    shift
+    continue
+  endif
+
+  # exit flag check if no flags remain...
+  break
+
+end
+
+# verify args...
+if ( $#argv > 1 ) then
+    echo "$usage"
+    exit 1
+endif
+
+# parse args...
+if ( $#argv >= 1 ) then
+    set image = $1
+    shift
+endif
+
+# in no-wait mode we return iommediately if no image is in progress...
+if ( $?nowait ) then
+    set buf = `show -s kbds -terse exposeip`
+    if ( "$buf" == "0" ) exit 0
+endif
+
+# loop until (a) the specified image is written,
+# or (b) a new image is written... 
+@ i = 0
+while (1)
+
+    # wait for an image to complete (catch IMAGEDONE transitioning 
+    # from 0 to 1...
+    waitfor -s  LTODISK = 1 >& /dev/null
+
+    # exit if we are not waiting for a specific image...
+    if ( "$image" == "default" ) break
+
+    # if waiting for a specific image, get the image name and 
+    # quit if we found it...
+    set new = `lastimage -tail`
+    if ( "$image" == "$new" ) break
+end
+
+# echo name if desired...
+if ( $verb ) then
+    lastimage
+endif
+exit

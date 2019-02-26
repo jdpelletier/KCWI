@@ -1,0 +1,114 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#     kcwiCheckGalilProgram - make sure Galil has correct DMC code
+#
+# SYNOPSIS
+#     kcwiCheckGalilProgram service galilhost
+#
+# DESCRIPTION
+#     Downloads the DMC code from the galilhost and compares it with
+#     the canonical DMC listing and reports 0 if the codes are identical
+#     and reports 1 if they are not.
+#
+# INPUTS
+#     service
+#          rpc server name to check
+#
+#     galilhost
+#          hostname for galil socket port
+#
+# EXAMPLES
+#     kcwiCheckGalilProgram kbes bexgalil
+#          Returns 1 if codes differ , 0 if not
+#
+# ENVIRONMENT VARIABLES
+#     none
+#
+# FILES
+#     none
+#
+# SERVERS & KEYWORDS
+#     service = kcwi servers attached to galil controllers
+#
+# SCRIPTS CALLED
+#     list of the scripts called by this script, for example:
+#
+#     help, syncheck
+#
+# EXIT STATUS
+#     0 - normal exit, no error
+#     1 - script aborted by an interrupt
+#     2 - syncheck error
+#     3 - error parsing command line input
+#     other errors...
+#
+# SEE ALSO
+#     ???
+#-
+#
+# Modification History:
+# 20141015 - JLW: Initial version created, modified kcwiCheckServer
+# 20141211 - JDN: Cleaned up header, added other galil hosts
+#
+
+# Boiler plate for "-h" support for command autohelp.
+
+if ("$1" == "-h") then
+    help $0 | more
+    exit $status
+endif
+
+# Boilerplate for syncheck.
+# Note that the boiler plate should be transparent for all usages,
+# but to make correct use of syncheck you will need to specify the
+# correct pattern.
+
+set noglob
+set servlist = "[kbes,kbms,kcas,kros]"
+set galilhosts = "[bexgalil,bmsgalil,calgalil,rotgalil]"
+set CheckStatus = `syncheck -command $0 $* -pattern ${servlist} ${galilhosts}` 
+unset noglob
+
+if ("$CheckStatus" != "OK") then
+    help $0
+    exit 2
+endif
+
+# End of help/syncheck boiler plate.
+
+# Set up to trap interrupts (Ctrl-C, etc.)
+onintr abort
+
+# Set default variable values
+
+# Get the command line argument
+set service = $1
+set galilHost = $2
+
+set dmcSource=$RELDIR/data/kcwi/${service}GalilProgram.ls
+set tmpLS=/tmp/${service}Temp.ls.${user}
+
+if (-e $tmpLS) then
+  /bin/rm $tmpLS
+endif
+
+kcwiGalilUploadProgram $galilHost > $tmpLS
+
+diff $dmcSource $tmpLS > /dev/null
+set diff=$status
+
+/bin/rm $tmpLS
+
+goto done
+
+abort:
+# Block of code to handle interrupts.
+exit -1
+
+done:
+# is there anything that needs to go here?
+echo $diff
+exit 0

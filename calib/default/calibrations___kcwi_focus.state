@@ -1,0 +1,14 @@
+statenam = kcwi_focus
+image_slicer = Medium
+filterb = KBlue
+gratingb = BM
+nsmaskb = Open
+ampmodeb = 10
+gainmulb = 10
+ccdmodeb = 1
+binningb = 2,2
+cal_mirror = Mirror
+polarizer = Sky
+cwaveb = 4500
+progname = calibrations
+stateid = 5a1a11b2ce9e2466a614763f

@@ -1,0 +1,46 @@
+#!/bin/csh -f
+#+
+# MOSFIRE library of scripts
+#
+# NAME
+#	miranightpath -- return the path of the 'nightly' linked directory path
+#
+# SYNOPSIS
+#	nightpath [side] [net]
+#
+# DESCRIPTION
+#	Print a string containing the predicted name of the 'nightly'
+#	directory into which cam images and other nightly data are placed.
+#	This directory is predicted based on the instrument in use and can
+#	be overridden by use of the "side" parameter.
+#	String is printed to stdout
+#
+# ARGUMENTS
+#
+# OPTIONS
+#
+# EXAMPLES
+#	1) Generate the summit nightly directory path for the current 
+#	instrument:
+#		miranightpath
+# 
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#
+# SCRIPTS CALLED
+#
+# EXIT STATUS
+#	0 = normal completion
+#	1 = wrong number of arguments
+#
+# SEE ALSO
+#-
+#
+# Modification History:
+#       2011-apr-02   	MK	Original Version
+#-----------------------------------------------------------------------
+
+echo "/sdata1300/mosfire/nightly"

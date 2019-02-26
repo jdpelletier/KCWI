@@ -1,0 +1,59 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#       east -- move the telescope east
+#
+# SYNOPSIS
+#	east x
+# 
+# DESCRIPTION
+#	Move the telescope the given number of arcsec EAST relative to
+#	its current position
+#
+# ARGUMENTS
+#	x = number of arcseconds to move EAST; negative values indicate
+#	WEST movement
+# 
+# OPTIONS
+#
+# EXAMPLES
+#	1) Move the telescope east by 10 arcsec:
+#		east 10
+#	2) Move the telescope west by 10 arcsec:
+#		east -10
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#
+# SCRIPTS CALLED
+#
+#      en
+#
+# EXIT STATUS
+#	0 = normal completion
+#	1 = wrong number of arguments
+#
+# Modification history:
+#	2011apr27	MK	Original version
+#-------------------------------------------------------------
+
+# check args...
+if (${#argv} != 1) then
+  echo "Usage: east x"
+  exit 1
+endif
+
+# verify floating-point values...
+is_float $* > /dev/null
+if ( $status ) then
+  echo "ERROR -- Argument must be valid floating-point numbers"
+  exit 2
+endif
+
+# make the move...
+en $1 0

@@ -1,0 +1,498 @@
+#!/usr/local/bin/perl -w
+#+
+# MOSFIRE library of scripts
+#
+# NAME
+#	obslog -- generate logsheet data from image headers
+#
+# SYNOPSIS
+#       obslog [-q] [n | images] [-l]
+#
+# DESCRIPTION
+#       Given a list of images, parse the image headers and print
+#       out a formatted list of data.  With no arguments, parse all of
+#       the images in the current directory in the order in which
+#       they were written to disk.
+#        Information printed to STDOUT
+#
+# ARGUMENTS
+#       n       = number of latest images to parse.
+#       images  = names of images to parse.  If no images are listed,
+#                       then all images in the current directory will be read
+#                       (EXCEPT for backup.fits).
+#
+# OPTIONS
+#       -q = quiet mode; no warnings
+#       -l = enables the "looping" mode
+#
+# EXAMPLES
+#       1) Generate log data for all images in the current directory:
+#               obslog
+#
+#       2) Generate log data for the last 5 images in the current directory:
+#               obslog 5
+#
+#       3) Generate log data for all images in the directory
+#       /s/sdata1300/mosfire4/2012may01:
+#               obslog /s/sdata1300/mosfire4/2012may01/*.fits
+#
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#
+# SCRIPTS CALLED
+#
+# EXIT STATUS
+#        0 = normal completion
+#        1 = wrong number of arguments
+#
+# SEE ALSO
+#-
+#
+# Modification History:
+#       2006-Feb-12     GDW     Original version, adapted from DEIMOS
+#       2006-Feb-17     GDW     Fixed lamp problem
+#       2006-May-08     GDW     Added "-q" flag
+#       2009-Jun-15     MK      Updated to work with MHDU FITS headers in 
+#                               use with the new red upgrade. Keywords 
+#                               changed in the upgrade.
+#       2009-Jun-18     MK      Modified to include OBJECT, and use
+#                               UTC instead of old UT Header keywords
+#       2011-Feb-29   	MK	Modified for use with MOSFIRE
+#-----------------------------------------------------------------------
+
+use Getopt::Std;
+use File::Basename;
+use strict;
+
+# declarations...
+$| = 1;
+my( $observers, $date, $directory);
+my( @images);
+my( $i, $j);
+my( $m, $n, $title_format);
+my( %HeadValue);
+my( $space);
+my( $buf);
+my( $status);
+my $loop_mode=0;
+my $header;
+my $new_image;
+my $header_interval = 20;
+my $linefeed = 0;
+$X::debug = 0;
+$X::verbose = 1;
+$X::null = 'INDEF'; # make this guy global so that it can be used in subs
+
+# define conversion from int to name...
+my( %SampName ) = ( '1'=>'Single',
+		    '2'=>'CDS',
+		    '3'=>'MCDS',
+		    '4'=>'UTR' );
+
+# define logsheet fields...
+&AddColumn( 'FILENAME',   'Filename',   '%-12s ');
+&AddColumn( 'TARGNAME',   'TargetName', '%-20s ');
+&AddColumn( 'RA-USER',      'RA',       '%-10s ');
+&AddColumn( 'DEC-USER',     'DEC',      '%-9s ');
+&AddColumn( 'RAOFF',      'RAoff',       '%6.1f ');
+&AddColumn( 'DECOFF',     'DECoff',      '%6.1f ');
+&AddColumn( 'ROTPOSN',    'SKYPA',      '%7.2f ');
+&AddColumn( 'ROTPPOSN',   'PHYSPA',     '%7.2f ');
+&AddColumn( 'UTC',        'UTC',        '%-5s ');
+&AddColumn( 'HA-USER',     'HA',        '%-6s ');
+&AddColumn( 'AIRMASS',    'Airmass',    '%7.2f ');
+#&AddColumn( 'LAMPLIST',   'Lamps',      '%-10s ');
+&AddColumn( 'OBSMODE',    'Obsmode',    '%-15s ');
+&AddColumn( 'FILTER',     'Filter',     '%-7s ');
+&AddColumn( 'MASKNAME',   'Slitmask',   '%-20s ');
+&AddColumn( 'MDCNAME',    'Dustcover',  '%-9s ');
+#&AddColumn( 'ORDER',      'Order',      '%6s ');
+&AddColumn( 'ITIME',      'ITime',       '%5d ');
+&AddColumn( 'COADDS',     'Coadds',      '%6d ');
+&AddColumn( 'SAMPNAME',   'SampMode',    '%-8s ');
+&AddColumn( 'NUMREADS',   'Reads',       '%5d ');
+&AddColumn( 'GROUPS',     'Groups',      '%6d ');
+&AddColumn( 'SEQUENCE',   'Dither',      '%6s ');
+
+# check args...
+die "Usage: $0 [-loop] [images]\n" if ( @ARGV < 0 );
+
+# get options...
+my( %option);
+getopts("Dlqi:L", \%option);
+if ( $option{'D'} ) {
+  $X::debug = 1;
+  print "DEBUG mode enabled\n" if $X::debug;
+}
+if ( $option{'l'} ) {
+  $loop_mode = 1;
+  print "LOOP mode enabled\n" if $X::debug;
+}
+if ( $option{'q'} ) {
+  $X::verbose = 0;
+  print "QUIET mode enabled\n" if $X::debug;
+}
+if ( $option{'i'} ) {
+  $header_interval = $option{'i'};
+  print "header interval = $header_interval\n" if $X::debug;
+}
+if ( $option{'L'} ) {
+  $linefeed = 1;
+  print "linefeed enabled\n" if $X::debug;
+}
+
+# build default image list...
+# build the image list
+@images=&BuildImageList;
+
+# parse args...
+if ( @ARGV == 1 and $ARGV[0] =~ /^\d+$/ ) {
+    $m = $ARGV[0];
+    if ( $m > @images ) { $m = scalar(@images) };
+    $m = -$m;
+    @images = @images[ $m .. -1 ];        # extract last $m elements of image list
+} elsif ( @ARGV > 0 ) {
+    @images = @ARGV;
+}
+
+# verify number of images...
+unless( @images ){
+    if( $X::verbose) {
+	die "ERROR: No images found"
+    } else {
+	exit 1
+}
+}
+
+# get some information from the first MOSFIRE image...
+for( $i=0 ; $i < @images ; $i++){
+    &GetFitsHead( $images[$i], \%HeadValue)
+	or next;
+    last if (defined($HeadValue{'INSTRUME'})
+	     and $HeadValue{'INSTRUME'} =~ m/MOSFIRE/)
+}
+unless (defined $HeadValue{'INSTRUME'}
+	and $HeadValue{'INSTRUME'} =~ m/MOSFIRE/) {
+    if( $X::verbose) {
+	die "ERROR: No MOSFIRE images found";
+    } else {
+	exit 1;
+    }
+}
+
+# print header...
+print "\n";
+print "UT Date: ", &BlankIfUndef($HeadValue{"DATE-OBS"}), "\n";
+print "Observers: ", &BlankIfUndef($HeadValue{"OBSERVER"}), "\n";
+print "Data directory: ", &BlankIfUndef($HeadValue{"OUTDIR"}), "\n";
+print "\n";
+
+&PrintHeader(0);
+
+# loop over images...
+my $counter=0;
+for ( $j=0 ; $j<@images ; $j++ ) {
+
+    $status = ProcessImage ($images[$j]);
+    $counter++ if $status;
+    
+    # re-display header every 20 lines...
+    if ( $counter>=$header_interval) {
+	&PrintHeader($linefeed) ;
+	$counter=0;
+    }
+}
+
+# quit unless we want to loop...
+exit unless $loop_mode;
+
+# start the waiting loop
+my $last_image=$images[@images-1];
+while (1) {
+
+    # wait for new image...
+    $new_image = `wfi`;
+    chomp( $new_image);
+
+    # skip if we got the same image again...
+    next if $new_image eq $last_image;
+
+    # re-display header every so often...
+    if (++$counter>=$header_interval) {
+	&PrintHeader($linefeed);
+	$counter=0;
+    }
+    
+    $status = ProcessImage ($new_image);
+    $counter++ if $status;
+
+    # store name...
+    $last_image = $new_image;
+}
+
+#------------------------------------------------------------------
+sub PrintHeader {
+  #------------------------------------------------------------------
+  my( $linefeed) = shift;
+  my( $line1, $line2);
+
+  if ($linefeed) {
+    print "";
+  }
+  $line1 = '';
+  $line2 = '';
+  for ( $i=0 ; $i<@X::keyword ; $i++ ) {
+    $X::format[$i] =~ m/^%-?(\d+)/;
+    $n = $1;
+    $X::format[$i] =~ m/(\s+)$/;
+    $space = $1;
+    $buf = sprintf "%-${n}s$space", $X::title[$i];
+    $line1 .= $buf;
+    $buf =~ s/./-/g;
+    $line2 .= $buf;
+  }
+  print "$line2\n";
+  print "$line1\n";
+  print "$line2\n";
+}
+
+#-----------------------------------------------------------------------
+sub ProcessImage {
+    #-----------------------------------------------------------------------
+    my $infile = shift;
+    
+    # read image header...
+    &GetFitsHead( $infile, \%HeadValue)
+	or return 0;
+    
+    # skip non-MOSFIRE images...
+    return 0 unless (defined($HeadValue{'INSTRUME'})
+		   and $HeadValue{'INSTRUME'} =~ m/MOSFIRE/);
+    
+    # fix or build various keywords...
+    $HeadValue{'FILENAME'} = &GetBaseName( $infile);
+    $HeadValue{'TARGNAME'} = substr( $HeadValue{'TARGNAME'}, 0, 20)
+	if defined $HeadValue{'TARGNAME'};
+    $HeadValue{'UTC'} = substr( $HeadValue{'UTC'}, 0, 5);
+    $HeadValue{'HA-USER'} = substr( $HeadValue{'HA-USER'}, 0, 6);
+    $HeadValue{'MASKNAME'} = substr( $HeadValue{'MASKNAME'}, 0, 20);
+    $HeadValue{'RA-USER'} = substr( $HeadValue{'RA-USER'}, 0, 10);
+    $HeadValue{'DEC-USER'} = substr( $HeadValue{'DEC-USER'}, 0, 9);
+#  $HeadValue{'LAMPLIST'} = substr( $HeadValue{'UTC'}, 0, 13)
+#  $HeadValue{'DISPERSER'} = substr( $HeadValue{'UTC'}, 0, 13)
+
+    # convert ITIME from msec to sec (with rounding)...
+    $HeadValue{'ITIME'} = int($HeadValue{'ITIME'}/1000+0.5);
+
+    # convert sampling mode from int to string...
+    ## print "\nsampmode=$HeadValue{'SAMPMODE'}\n";
+    $HeadValue{'SAMPNAME'} = $SampName{$HeadValue{'SAMPMODE'}};
+
+    # convert sampling mode from int to string...
+    ## print "\nsampmode=$HeadValue{'SAMPMODE'}\n";
+    $HeadValue{'SEQUENCE'} = $HeadValue{'FRAME'}.'/'.$HeadValue{'FRAMES'};
+
+    # print results...
+    for ( $i=0 ; $i<@X::keyword ; $i++ ) {
+	&PrintKeyword( $HeadValue{$X::keyword[$i]}, $X::format[$i]);
+    }
+    printf "\n";
+
+    return 1;
+}
+
+#-----------------------------------------------------------------------
+sub GetFitsHead {
+#-----------------------------------------------------------------------
+
+    # get file name to read header from
+    my( $infile, $array) = @_;
+    my( $comment);
+    my( $name, $rest, $lastquote, $value, $value2);
+    my( $status);
+
+    # reset output hash to null
+    %$array = ();
+
+    # open the file with a shared lock to prevent it being modified
+    # during reading...
+    unless (open(TEST, "<$infile")){
+	warn "error opening file $infile: $!";
+	return 0;
+    }
+    unless (flock(TEST, 1)){
+	warn "error attempting to lock file $infile: $!";
+	return 0;
+    }
+
+    # open input file using appropriate method...
+    if ($infile =~ /\.gz$/i) {
+	open INFITS, "gunzip --stdout $infile |";
+	$| = 1;     # enable autoflush on gunzip output
+    } else {
+	open INFITS, $infile;
+    }
+
+    # initialize input variable to allow for end-of-header trapping
+    my($headline) = "     ";
+
+    # loop thru FITS file 80 bytes at a time until end-of-header mark found
+    until (substr($headline,0,8) eq "END     ") {
+	$status = read(INFITS, $headline, 80);
+	unless ( $status){
+	    warn "unexpected end of file while reading image $infile";
+	    return undef;
+	}
+	chomp($headline);
+
+	# DATE-OBS=       1333663730.392 / universal date of observation (2012-04-05)
+	next unless $headline =~ m|^(........)=\s*(.*) / (.*)$|;
+
+	# identify keyword name from first 8 bytes
+	$name = $1;
+	$value = $2;
+	$comment = $3;
+
+	# strip trailing spaces off of keyword names
+	$name =~ s/\s+$//g;
+
+	# test if value is a string, handle single quotes if it is
+	if ( $value =~ m|'([^']+)'| ){
+	    $value = $1;
+	}
+
+	# add next value and comment to respective hashes
+	unless ($name eq "END" or $name eq "") {
+	    print "name=$name value=$value\n" if $X::debug;
+	    $$array{$name} = $value;
+	}
+	
+	# check for alternate value in the comment...
+	print "name=$name value=$value comment=$comment\n" if $X::debug;
+	if ( $comment =~ m|\((.+)\)\s*$| ) {
+	    $value2 = $1;
+	    print "value2=$value2\n" if $X::debug;
+	    $$array{"$name-USER"} = $value2;
+	}
+	
+    }
+
+    # close input FITS file
+    close INFITS;
+    close TEST;
+    return 1;
+}
+
+#-----------------------------------------------------------------------
+sub AddColumn {
+#-----------------------------------------------------------------------
+    my( $keyword, $title, $format) = @_;
+    push( @X::keyword, $keyword);
+    push( @X::title, $title);
+    push( @X::format, $format);
+}
+
+#-----------------------------------------------------------------------
+sub BlankIfUndef {
+#-----------------------------------------------------------------------
+    my( $value) = @_;
+    if( defined $value){
+	return $value
+    } else {
+	return ''
+}
+}
+
+#-----------------------------------------------------------------------
+sub GetBaseName {
+#-----------------------------------------------------------------------
+    my( $filename) = @_;
+    return (fileparse( $filename, '\..*'))[0];
+}
+
+
+
+
+
+#-----------------------------------------------------------------------
+sub GetMosfireLamps {
+#-----------------------------------------------------------------------
+    my( $array) = @_;
+    my( @lamps) = qw(Hg Ne Ar Cd Zn Qz);
+    my( $lamplist, @lamp_status);
+
+    # check for bad header...
+    if ( not defined($$array{'LAMPS'}) or
+	 not defined($$array{'TRAPDOOR'})){
+	return undef;
+    }
+
+    # fix lamps...
+    $lamplist = '';
+    if ( defined($$array{'LAMPS'}) and ($$array{'TRAPDOOR'} ne 'open')){
+	@lamp_status = split(/,/, $$array{'LAMPS'});
+	for ( $i=0 ; $i<=$#lamp_status ; $i++){
+	    if ( $lamp_status[$i] != 0 ) {
+		$lamplist .= $lamps[$i]
+	    }
+	}
+	$lamplist = $lamplist || $X::null;
+    } else {
+	if ( defined $$array{'FLIMAGIN'} and
+	     $$array{'FLIMAGIN'} !~ m/^off/i ){
+	    $lamplist .= "Dome/Im"
+	}
+	if ( defined $$array{'FLSPECTR'} and
+	     $$array{'FLSPECTR'} !~ m/^off/i ){
+	    $lamplist .= "Dome/Sp"
+	}
+    }
+    return $lamplist;
+}
+
+#-----------------------------------------------------------------------
+sub PrintKeyword {
+#-----------------------------------------------------------------------
+    my( $keyword, $format) = @_;
+    my( $buf, $n);
+
+    if ( defined $keyword and $keyword ne $X::null ){
+	$keyword =~ s/^\s+//; # remove leading whitespace
+	$keyword =~ s/\s+$//; # remove trailing whitespace
+	printf $format, $keyword;
+    } else {
+	$format =~ m/^%-?(\d+)/;
+	$n = $1;
+	if ( not defined $keyword){
+	    $buf = '?'
+	} else {
+	    $buf = '.'
+    }
+	printf "%-${n}s ", $buf;
+    }
+}
+
+#------------------------------------------------------------------
+sub BuildImageList {
+    #------------------------------------------------------------------
+
+    # build default image list...
+    opendir DATADIR, '.';
+    my @images = sort grep /\.fits/, readdir DATADIR;
+    closedir DATADIR;
+    
+    # expunge bad filenames from image list.
+    # NOTE: that we traverse the list BACKWARDS because we are removing elements from the list as we go...
+    for ( $i=@images-1 ; $i>=0 ; $i--){
+	if( ($images[$i] =~ m/backup.fits/) or	# remove backup files
+	    ($images[$i] =~ m/^cam/) or		# remove cam files
+	    not ($images[$i] =~ m/.fits$/ or $images[$i] =~ m/.fits.gz$/)){
+	    splice( @images, $i, 1) 
+	}
+    }
+    return @images;
+}

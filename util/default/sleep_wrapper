@@ -1,0 +1,74 @@
+#!/bin/csh -f
+#+
+# sleep_wrapper -- execute script, sleep, and exit
+#
+# Purpose:
+#	Execute the specified script, beep, and print "Done."
+#	Sleep for a certain amount of time before exiting when complete.
+#
+# Usage:
+#	sleep_wrapper [-n <sec>] <commands>
+# 
+# Arguments:
+#	sec = number of seconds to sleep [default=3]
+#	commands = shell script to be run in the window
+# 
+# Output:
+#	to stdout of new xterm window
+# 
+# Restrictions:
+#	None
+# 
+# Exit values:
+#	 0 = normal completion
+#	 1 = wrong number of arguments
+#
+# Example:
+#	1) Remotely execute the "ctx" command:
+#		xrsh punaluu xterm -e sleep_wrapper ctx
+#
+#	2) Remotely execute the "ctx" command, sleeping for 30 sec afterwards:
+#		xrsh punaluu xterm -e sleep_wrapper -n 30 ctx
+#
+#-
+# Modification history:
+#	2000-Aug-31	GDW	Original version
+#	2006-Jan-02	GDW	Added -n parameter
+#-----------------------------------------------------------------------
+
+# set defaults...
+set n_sec = 3
+
+# parse flags...
+while ( $#argv > 0 )
+
+  # check for -n flag...
+  if ( "$1" =~ \-n* ) then
+    shift
+    set n_sec = $1
+    shift
+    continue
+  endif
+
+  # exit flag check if no flags remain...
+  break
+
+end
+
+# verify args...
+if ( $#argv < 1 ) then
+  set buf = $0
+  set cmd = $buf:t
+  echo "Usage: $cmd [-n sec] <commands>"
+  sleep 3
+  exit 1
+endif
+
+# run the command...
+$*
+
+# beep and sleep...
+printf "\a\nDone --- exit in $n_sec sec"
+sleepdots $n_sec
+exit
+

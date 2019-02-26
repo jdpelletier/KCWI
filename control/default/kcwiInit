@@ -1,0 +1,290 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#       kcwiInit - Initialize the instrument for an observing session
+# 
+# SYNOPSIS
+#       kcwiInit
+#
+# DESCRIPTION
+#	Reset KCWI options for a new observer. Actions include:
+#	- define OBSERVER keyword
+#	- define OUTDIR keyword and validate
+#	- reset FRAMENO as desired
+#       - reset instrument and camera keywords
+#	- allow optional homing of motors
+#	- reset detector to standard values
+#	- reset other keywords to fiducial values
+#	- verify available disk space on OUTDIR disk
+#
+# ARGUMENTS
+#       none
+#
+# OPTIONS
+#       none
+#
+# EXAMPLES
+#	1) Initialize KCWI:
+#		kcwiInit
+#       
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#
+# SCRIPTS CALLED
+#
+# EXIT STATUS
+#	0 - normal exit, no error
+#	1 - script aborted by an interrupt
+#
+# Modification History:
+#	2012-apr-02	MK	Original version
+#	2012-nov-27	MK	removed make dcs real (it causes issues)
+#	2012-Jan-24	GDW	Add code to save observer params
+#       2013-Apr-11     MK      Added default log levels
+#	2013-Apr-28	GDW	Fix code to set frame number
+#       2013-Dec-29     MK      Removed the observer entry and updated the 
+#                               frame number to work correctly if input 
+#                               value is negative. 
+#	2014-May-10	GDW	Add reset of NODE and NODN
+#       2015-Jan-09     MK      Auto create a data dir. No longer prompts 
+#                               user to keep the same data dir. Better for 
+#                               Koa and removes a step in the script.
+#       2016-Jul-13     LR      Modified to work with KCWI
+#------------------------------------------------------------------------------
+
+# set defaults...
+set cmd = `basename $0`
+set usage = "Usage: $cmd"
+
+# verify args...
+if ( $#argv > 0 ) then
+  printf "$usage\n\a"
+  exit 1
+endif
+
+# verify that the user really wants to run the script...
+cat <<END
+Welcome to the KCWI initialization script. You should ALWAYS run 
+this script at the start of any observing nights of your run to 
+undo any changes that the previous observer made to KCWI and to 
+re-initialize hardware and software.
+
+END
+printf "Do you want to continue running the setup script? (y/n) [y]: "
+set response = "$<"
+if( "$response" != "" && $response !~ y* && $response !~ Y* ) exit
+
+# turn off the DCS simulator...
+#make_dcs_real
+
+# Unlock all servers
+kcwiUnlockAllServers
+
+if ( $status ) then
+    echo "Cannot start software"
+    # exit(1)
+    # echo "OVERRIDE!!!! Starring anyway"
+endif
+
+
+# define the observer.  Note the use of parens and quotes to deal with 
+# multiple-word values, and of "noglob" to allow special
+# characters in names... 
+set noglob
+set default = ( `show -terse -service kbds observer` )
+printf "Enter names of observing team members [$default]:\n"
+set observer = "$<"
+if ( "$observer" != "" ) then
+    modify -s kbds observer = "$observer"
+endif
+
+
+# reset the instrument and camera keywords for the blue detector
+modify -s kbds INSTRUMENT="KCWI"
+modify -s kbds CAMERA="BLUE"
+
+
+
+# define the output directory...
+set outdir = `show -terse -service kbds outdir`
+printf "Output directory is currently set to $outdir\n"
+
+# reset the disk list on the blue server
+modify -s kbds disklist="/s/sdata1400"
+
+# if this is a re-run of the script, default is NO change...
+#if ( $?rerun ) then
+#    set default = n
+#else
+#    set default = y
+#endif
+
+set default = y
+printf "Do you want to create a new data directory? (y/n) [$default]: "
+set yesno = "$<"
+
+# no response ==> use default...
+if ( "$yesno" == "" ) then
+    set yesno = $default
+endif
+
+
+# positive response ==> create new directory...
+if ( "$yesno" =~ y* || "$yesno" =~ Y* ) then
+    newdir
+endif
+
+# set the frame number; default is to use next number in sequence for
+# current output directory...
+set default = `nextfileb`
+printf "Enter starting blue image number [$default]: "
+set frameno = "$<"
+if ( "$frameno" == "" ) then
+    set frameno = $default
+endif
+if ( $frameno < 0 ) then
+    set frameno = 0
+endif
+setframeb $frameno
+set frameroot = `framerootb`
+echo "Changing frameroot to $frameroot"
+modify -s kbds outfile=`framerootb`
+
+
+### FOCAL PLANE CAMERA
+set default = `nextfilefpc`
+printf "Enter starting focal plane camera image number [$default]: "
+set frameno = "$<"
+if ( "$frameno" == "" ) then
+    set frameno = $default
+endif
+if ( $frameno < 0 ) then
+    set frameno = 0
+endif
+setframefpc $frameno
+#@ frameroot = `framerootfpc`
+modify -s kfcs outfile=`framerootfpc`
+
+#@ default = `nextfiler`
+#printf "Enter starting red image number [$default]: "
+#set frameno = "$<"
+#if ( "$frameno" == "" ) then
+#    @ frameno = $default
+#endif
+#if ( $frameno < 0 ) then
+#    @ frameno = 0
+#endif
+#setframer $frameno
+#@ frameroot = `framerootr`
+#modify -s kbds outfile = $frameroot
+
+
+
+set ccdpower = `show -s kbds -terse ccdpower`
+
+if ( "$ccdpower" == "1" ) then
+    printf "The CCD power is already on\n"
+
+else
+    # reset detector...
+    set default = "y"
+    printf "Do you want to turn on power to the Blue CCD? (y/n) [$default]: "
+    set yesno = "$<"
+
+    # no response ==> use default...
+    if ( "$yesno" == "" ) then
+	set yesno = $default
+    endif
+
+    if ( "$yesno" =~ y* || "$yesno" =~ Y* ) then
+    printf "Turning on power to Blue CCD\n"
+
+    modify -s kbds ccdpower = 1
+    sleepdots 5
+    endif
+
+endif
+
+    set default = "y"
+    printf "Do you want to reset the Blue CCD to default settings ? (y/n) [$default]: "
+    set yesno = "$<"
+
+    # no response ==> use default...
+    if ( "$yesno" == "" ) then
+	set yesno = $default
+    endif
+
+    # positive response ==> create new directory...
+    if ( "$yesno" =~ y* || "$yesno" =~ Y* ) then
+    printf "Resetting detector parameters to their nominal values...\n"
+    kcwiSetBlueDetectorDefault
+    endif
+
+
+set magiqPower = `show -s kp1s -terse pwstat2`
+
+if ( "$magiqPower" == "1" ) then
+    printf "Magiq power is already on"
+else
+    set default = "y"
+    printf "Do you want to turn on power to the Magiq Guider? (y/n) [$default]: "
+    set yesno = "$<"
+
+    # no response ==> use default...
+    if ( "$yesno" == "" ) then
+	set yesno = $default
+    endif
+
+    if ( "$yesno" =~ y* || "$yesno" =~ Y* ) then
+    printf "Turning on power to Magiq Guider\n"
+
+    kcwiPower 1 2 on
+    sleepdots 5
+    endif
+endif
+
+
+
+#kcwiSetRedDetectorDefault
+
+# reset other keywords...
+#printf "Resetting other keywords to fiducial values...\n"
+#set_state -v <<EOF
+#mosfire OBJECT Startup
+#mosfire NODE   0.
+#mosfire NODN   0.
+#EOF
+
+#printf "Savings current settings to $settings\n"
+#set outdir = `show -terse -service mosfire outdir`
+#set observer = ( `show -terse -service mosfire observer` )
+#if ( -e $settings ) then
+#    \rm $settings
+#    if ( $status != 0 ) then
+#	printf "[$cmd] ERROR: unable to remove existing settings file $settings\n\a"
+#	exit 1
+#    endif
+#endif
+
+#cat > $settings <<EOF
+## KCWI initial settings file
+#mosfire  OBSERVER $observer
+#mosfire  OUTDIR   $outdir
+## generator: $0
+## generated: `date`
+#EOF
+
+# finished...
+cat <<EOF
+
+------------------------------------------------------------------------
+                    Instrument initialization completed
+------------------------------------------------------------------------
+EOF
+
+exit

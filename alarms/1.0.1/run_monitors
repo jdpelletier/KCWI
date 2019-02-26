@@ -1,0 +1,13 @@
+#! /usr/bin/csh
+source $HOME/.cshrc
+/kroot/rel/default/bin/detector_temperature
+/kroot/rel/default/bin/detector_heater
+/kroot/rel/default/bin/vacion_on
+#
+/kroot/rel/default/bin/cabinet_temperature
+#/kroot/rel/default/bin/cabinet_shutdown_monitor
+#/kroot/rel/default/bin/monitor_kt1s
+#/kroot/rel/default/bin/monitor_kt2s
+#/kroot/rel/default/bin/monitor_kbgs
+#/kroot/rel/default/bin/monitor_kbvs
+

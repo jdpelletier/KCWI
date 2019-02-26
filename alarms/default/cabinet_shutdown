@@ -1,0 +1,19 @@
+#! /kroot/rel/default/bin/kpython
+
+from KCWI import PowerInit
+from KCWI.Helper import say
+from subprocess import call
+import os
+
+PowerInit.kcwiPower('3','8','off')
+PowerInit.kcwiPower('3','1','off')
+PowerInit.kcwiPower('2','7','off')
+PowerInit.kcwiPower('1','1','off')
+PowerInit.kcwiPower('1','7','off')
+
+
+reldir = os.environ['RELDIR']
+script = os.path.join(reldir,'bin/kcwiPowerStatus | mail luca.kilohi@gmail.com')
+
+call(script, shell=True)
+say("Cabinet shutdown complete")

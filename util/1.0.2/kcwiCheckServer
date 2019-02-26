@@ -1,0 +1,107 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#	kcwiCheckServer - check if server is alive
+#
+# SYNOPSIS
+#     kcwiCheckServer service
+#
+# DESCRIPTION
+#     Checks if the specified server is running by checking the lastalive
+#     keyword, and reports 1 if the server is alive, 0 if not.
+#
+# OPTIONS
+#     service
+#          rpc server name to check
+#
+# EXAMPLES
+#     kcwiCheckServer kt1s
+#          Returns 1 is server is alive, 0 if not
+#
+# ENVIRONMENT VARIABLES
+#     none
+#
+# FILES
+#     none
+#
+# SERVERS & KEYWORDS
+#     service = all kcwi servers
+#          keywords: lastalive
+#
+# SCRIPTS CALLED
+#     list of the scripts called by this script, for example:
+#
+#     help, syncheck
+#
+# EXIT STATUS
+#     0 - normal exit, no error
+#     1 - script aborted by an interrupt
+#     2 - syncheck error
+#     3 - error parsing command line input
+#     other errors...
+#
+# SEE ALSO
+#     None
+#-
+#
+# Modification History:
+# 20140214 - JDN: modifications for KCWI
+# 20060608 - JLW: Initial version created, modified from osiris
+#
+
+# Boiler plate for "-h" support for command autohelp.
+
+if ("$1" == "-h") then
+    help $0 | more
+    exit $status
+endif
+
+# Boilerplate for syncheck.
+# Note that the boiler plate should be transparent for all usages,
+# but to make correct use of syncheck you will need to specify the
+# correct pattern.
+
+set noglob
+set servlist = "[kp1s,kp2s,kp3s,kt1s,kt2s,kbgs,kbvs,kbes,kbms,kbds,kros,kcas,kfcs,kcwi]"
+set CheckStatus = `syncheck -command $0 $* -pattern ${servlist}` 
+unset noglob
+
+if ("$CheckStatus" != "OK") then
+    help $0
+    exit 2
+endif
+
+# End of help/syncheck boiler plate.
+
+# Set up to trap interrupts (Ctrl-C, etc.)
+onintr abort
+
+# Set default variable values
+
+# Get the command line argument
+set service = $1
+
+# Check if the server is running
+show -s ${service} lastalive >& /dev/null
+set exitcode = $status
+if ($exitcode == 0) then
+  # server is alive
+  echo 1
+  goto done
+else
+  # assume the server is dead
+  echo 0
+  exit $exitcode
+endif
+
+goto done
+
+abort:
+# Block of code to handle interrupts.
+exit 1
+
+done:
+# is there anything that needs to go here?
+exit

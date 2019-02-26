@@ -1,0 +1,52 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#       north -- move the telescope north
+#
+# SYNOPSIS
+#	north x
+# 
+# DESCRIPTION
+#	Move the telescope the given number of arcsec NORTH relative to
+#	its current position
+#
+# ARGUMENTS
+#	x = number of arcseconds to move NORTH; negative values indicate
+#	SOUTH movement
+# 
+# OPTIONS
+#
+# EXAMPLES
+#	1) Move the telescope north by 10 arcsec:
+#		north 10
+#	2) Move the telescope west by 10 arcsec:
+#		north -10
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#
+# SCRIPTS CALLED
+#
+#      en
+#
+# EXIT STATUS
+#	0 = normal completion
+#	1 = wrong number of arguments
+#
+# Modification history:
+#	2011apr27	MK	Original version
+#-------------------------------------------------------------
+
+# check args...
+if (${#argv} != 1) then
+  echo "Usage: north x"
+  exit 1
+endif
+
+# make the move...
+en 0 $1 

@@ -1,0 +1,103 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#       east -- move the telescope east
+#
+# SYNOPSIS
+#	en x y
+# 
+# DESCRIPTION
+#	Move the telescope the given number of arcsec EAST & NORTH 
+#       relative to its current position
+#
+# ARGUMENTS
+#	x = number of arcseconds to move EAST; negative values indicate
+#	WEST movement
+# 
+# OPTIONS
+#
+# EXAMPLES
+#	1) Move the telescope east by 10 arcsec:
+#		en 10 0
+#	2) Move the telescope west and north by 10 arcsec:
+#		en -10 10
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#      servers: dcs
+#         keywords: raoff, decoff
+# 
+# SCRIPTS CALLED
+#
+#      en
+#
+# EXIT STATUS
+#	0 = normal completion
+#	1 = wrong number of arguments
+#
+# Modification history:
+#	2011apr27  MK  Original version
+#       2014apr07  MK  Added loging to the nightly directory
+#-------------------------------------------------------------
+# Set default variable values
+set cmd = `basename $0`
+set usage = "Usage: $cmd e# n#"
+
+
+# check args...
+if (${#argv} != 2) then
+  echo "$usage "
+  exit 1
+endif
+
+# verify floating-point values...
+is_float $* > /dev/null
+if ( $status ) then
+  echo "ERROR -- Argument must be valid floating-point numbers"
+  exit 2
+endif
+
+# Grab the current value of autpause...
+set autresum = `show -s dcs -terse autresum`
+
+# set move cmd  
+ set command = "modify -s dcs silent raoff=$1 decoff=$2 rel2curr=t"
+
+# check for case of no move.  The purpose of the following lines is to
+# convert "0" or "0.0" or "0.000000" to just "0" so we can perform a
+# string comparison...
+set x2 = `calc "$1*1"`
+set y2 = `calc "$2*1"`
+#check for no move.
+if ( "$x2" == "0" && "$y2" == "0" ) then
+    printf "[$cmd] WARNING: x and y moves are both zero -- exiting\n"
+    exit 0
+endif
+
+#log the move. This should be temporary because it adds 0.05 sec to 
+# the execution of the mxy command.
+set exec_date = `date -u +"%Y/%m/%d,%T"`
+set nightpath = `nightpath`instrumentOffsets
+kcwiScriptMsg -f $nightpath -m "$exec_date        $command" 
+
+# execute move...
+$command
+
+#log an error if keyword request is not successful 
+if ($status != 0) then 
+  kcwiScriptMsg  -f $nightpath -m "$exec_date ERROR in modify: $command" 
+endif
+
+# wait for guider to cycle twice...
+@ startTime = `date +"%s"`
+wftel $autresum
+@ endTime = `date +"%s"`
+@ elapsedTime = $endTime - $startTime
+echo "[$cmd] wftel completed in $elapsedTime sec"
+
+exit

@@ -1,0 +1,57 @@
+#!/usr/bin/perl -w
+#+
+#KCWI library of scripts
+#
+#NAME
+#       is_float -- check whether the argument is floating point number
+#
+#SYNOPSIS
+#       is_float [arg1 arg2 ... argN]
+#
+# DESCRIPTION
+#       Check whether the arguments are valid flaoting point numbers
+#       by doing a pattern match.
+# 
+# Arguments:
+#       arg1, etc:      strings to be evaluated as possible numbers
+# 
+#OPTIONS
+#       A leading "+" will invalidate the string; e.g., "+1.00" is not
+#       considered a valid number.
+#
+# EXAMPLES:
+#       1) check whether a variable is a floating point value:
+#               set a = 1.234
+#               is_float $a
+#               echo $status    ( returns 0 ==> good)
+#
+# #ENVIRONMENT VARIABLES
+#     list of environment variables used
+#
+#FILES
+#     list of files used
+#
+#SERVERS & KEYWORDS
+#     
+#     service = mosfire
+#          keywords: sfilter/ifilter, sscale
+#
+#SCRIPTS CALLED
+#
+#     help, syncheck
+#
+#EXIT STATUS:
+#        0 = normal completion; all values are floats
+#        1 = non-floats detected
+#
+#-
+# Modification history:
+#       2011-apr-11  MK  Original version
+#-----------------------------------------------------------------------
+$status = 0;
+foreach $arg ( @ARGV ) {
+  $_ = $arg ;
+  if ( /^[-+]?(?:\d+(?:\.\d*)?|\.\d+)$/ ) { print ; print "\n"} else { $status=1}
+}
+exit $status;
+

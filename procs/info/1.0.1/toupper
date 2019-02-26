@@ -1,0 +1,41 @@
+#!/bin/csh -f
+#+
+# toupper -- convert argument(s) to upper case
+#
+# Purpose:
+#	Convert all of the passed text to upper case.
+#
+# Usage:
+#	toupper <text>
+# 
+# Arguments:
+#	text = text string to be converted
+# 
+# Output:
+#	The converted text is written to stdout
+# 
+# Exit values:
+#	0 = normal completion
+#	1 = no arguments
+#
+# Example:
+#	1) convert the string "red" to uppercase:
+#		toupper red
+#
+#-
+# Modification history:
+#	2000-Jul-11	GDW	Original version
+#-----------------------------------------------------------------------
+
+# extract command name...
+set buf = $0
+set cmd = $buf:t
+
+
+# convert to lowercase...
+if ( $#argv < 1 ) then
+  gawk '{print toupper($0)}'
+else 
+  echo $* | gawk '{print toupper($0)}'
+endif
+

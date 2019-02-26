@@ -1,0 +1,100 @@
+#!/bin/csh -f
+#+
+# MOSFIRE library of scripts
+#
+# NAME
+#	wfs -- wait for the current script to complete
+#
+# SYNOPSIS
+#	wfs [-nowait] [-silent] 
+#
+# DESCRIPTION
+#	With no argument, wait for a script to be written to finish 
+#       , and print the name of the image to STDOUT.
+#
+# ARGUMENTS
+#	-nowait = do not wait if script not in progress; return immediately
+#	-silent = do not print image name
+#
+# OPTIONS
+#
+# EXAMPLES
+#	1) Wait until the script finishes:
+#		wfi
+# 
+# 	3) Wait only if a script is in progress...
+#		wfi -n 
+#
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#
+# SCRIPTS CALLED
+#
+# EXIT STATUS
+#	0 = normal completion
+#	1 = wrong number of arguments
+# SEE ALSO
+#-
+#
+# Modification history:
+#     2013oct10    MK   Original Version - Modified wfi
+#
+#-----------------------------------------------------------------------
+
+set buf = $0
+set cmd = $buf:t
+set usage = "Usage: $cmd [-silent] image"
+set verb = 1
+set image = default
+
+# parse flags...
+while ( $#argv > 0 )
+
+  # check for -nowait flag...
+  if ( "$1" =~ \-n* ) then
+    set nowait=1
+    shift
+    continue
+  endif
+
+  # check for silent flag...
+  if ( "$1" =~ \-s* ) then
+    set verb = 0
+    shift
+    continue
+  endif
+
+  # exit flag check if no flags remain...
+  break
+
+end
+
+# verify args...
+if ( $#argv >= 1 ) then
+    echo "$usage"
+    exit 1
+endif
+
+# in no-wait mode we return immediately if a script is not in progress...
+if ( $?nowait ) then
+    set buf = `show -s mosfire -terse scriptrun`
+    if ( "$buf" == "0" ) then
+      # incase a goi was executed and the script run is not set
+      wfi -n
+      exit 0
+    endif
+endif  
+
+# wait for an image to complete (catch IMAGEDONE transitioning 
+# from 0 to 1...
+waitfor -s mosfire SCRIPTRUN = 1 >& /dev/null
+sleep 1
+waitfor -s mosfire SCRIPTRUN = 0 >& /dev/null
+
+# incase a goi was executed and the script run is not set
+wfi -n
+exit

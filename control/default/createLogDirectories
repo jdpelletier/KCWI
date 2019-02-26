@@ -1,0 +1,123 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#     createLogDirectories - if a log directory is missing, creates it
+#
+# SYNOPSIS
+#	createLogDirectories
+#
+# DESCRIPTION
+#       Every time the kcwi servers are started, date coded logs are
+#       started. This scrips makes sure that those directories exists.
+#
+# ARGUMENTS
+#
+# OPTIONS
+#
+# EXAMPLES
+#
+# ENVIRONMENT VARIABLES
+#
+# $RELDIR: the logs are created in $RELDIR/var/logs
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#
+# SCRIPTS CALLED
+#
+# EXIT STATUS
+#     0 - normal exit, no error
+#
+# SEE ALSO
+#
+# Modification History:
+#       2016jun05     LR              new
+#------------------------------------------------------------------------------
+
+echo Creating log directories
+
+#set rootdir="/sdata1400/logs/server/"
+# THIS IS GOING TO BE THE ACTUAL VALUE
+
+set rootdir="${RELDIR}/var/log/"
+
+if (-e $rootdir ) then
+    echo "The root log directory already exists"
+else
+    echo "The root log directory does not exist. Please create $rootdir"
+    exit 1
+endif
+if (-e $rootdir/server ) then
+    echo "The server log directory already exists"
+else
+    echo "The server log directory does not exist. Please create $rootdir/server"
+    exit 1
+endif
+if (-e $rootdir/script ) then
+    echo "The script log directory already exists"
+else
+    echo "The script log directory does not exist. Please create $rootdir/script"
+    exit 1
+endif
+if (-e $rootdir/gui ) then
+    echo "The gui log directory already exists"
+else
+    echo "The gui log directory does not exist. Please create $rootdir/gui"
+    exit 1
+endif
+
+# servers
+
+set subdirs=( "kcwi" "kt1s" "kt2s"  "kp1s" "kp2s" "kp3s" "kros" "kcas"  "kbgs" "kbvs" "kbds" "kbes" "kbms" "kfcs" "all" "servers" "localservers" )
+
+foreach subdir ($subdirs) 
+  set directory="$rootdir/server/$subdir"
+  if (-e $directory) then
+    echo "$directory already exists"
+  else
+    echo "$directory is missing. Attempting to create it..."
+    mkdir $directory
+    if ( $status != 0 ) goto error
+  endif
+  touch $directory/0_0.log
+end
+
+# scripts
+set subdirs=( "keygrabber" "kcwidisplayb" "kfcdisplay" "kcwid" "watchrot" "magiqdisplay" "kcwiConfManager" "watchdar" "kcwiExposureGui" "kcwiOffsetGui" "kcwiCalibrationGui" "kcwiStatusGui" "eventsounds" "soundboard")
+
+foreach subdir ($subdirs) 
+  set directory="$rootdir/script/$subdir"
+  if (-e $directory) then
+    echo "$directory already exists"
+  else
+    echo "$directory is missing. Attempting to create it..."
+    mkdir $directory
+    if ( $status != 0) goto error
+  endif
+  touch $directory/0_0.log
+end
+
+# gui
+set subdirs=( "kdesktop" )
+
+foreach subdir ($subdirs) 
+  set directory="$rootdir/gui/$subdir"
+  if (-e $directory) then
+    echo "$directory already exists"
+  else
+    echo "$directory is missing. Attempting to create it..."
+    mkdir $directory
+    if ( $status != 0) goto error
+  endif
+  touch $directory/0_0.log
+end
+
+done: 
+    exit 0
+error:
+    echo "There was a problem creating directory $directory"
+    exit 1
+

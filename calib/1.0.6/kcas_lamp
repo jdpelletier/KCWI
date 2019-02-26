@@ -1,0 +1,133 @@
+#!/bin/tcsh
+#
+# 160427
+# Matuszewski -- matmat@caltech.edu
+#
+# Wrapper for lamp `modify/show -s kcas lampXstatus`
+#
+# kcas_lamp <lamp> <action>
+# valid <lamp> are THAR, FEAR, CONTINUUM
+# valid <action> are ON, OFF, STATUS
+#
+# additionally, kcas_lamp ALL OFF, turns off all lamps at the Galil level.
+# 
+
+if ( ( $# < 1 ) || ( $# > 2 ) ) then
+    exit -1
+endif 
+
+# make sure KCAS is running
+if ( ! `kcwiCheckServer kcas` ) then
+    exit -2
+endif
+
+# capitalize
+set lamp=`echo $1 | tr "[a-z]" "[A-Z]"`
+
+# check validity
+switch ( $lamp )
+    case THAR:
+    case THA:
+    case TH:
+    case T:
+    case 1:
+	set lampid=1
+    breaksw
+    case FEAR:
+    case FEA:
+    case FE:
+    case F:
+    case 0: 
+	set lampid=0
+    breaksw
+    case CONTINUUM:
+    case CONT:
+    case CON:
+    case LED:
+    case 3:
+	set lampid=3
+    breaksw
+    case ALL:
+    case AL:
+    case A:
+    case -1:
+	set lampid=-1
+    breaksw
+    default:
+	exit -3
+    breaksw
+endsw
+
+# capitalize
+if ( $# == 2 ) then 
+    set action=`echo $2 | tr "[a-z]" "[A-Z]"`
+else
+    set action="STATUS"
+endif
+
+# get lamp status or toggle lamp.
+
+switch ( $action )
+    case ON:
+    case 1:
+	if ( $lampid >= 0 ) then 
+	    set res=`modify -s kcas lamp${lampid}status=1`
+	    if ( $status ) then
+		exit -4
+	    else 
+		set res=`show -t -s kcas lamp${lampid}status`
+		if ( $status ) then 
+		    exit -4
+		else 
+		    echo $res
+		endif 
+	    endif
+	else
+	    exit -8
+	endif
+    breaksw
+    case OFF:
+    case OF:
+    case 0: 
+	if ( $lampid >= 0 ) then 
+	    set res=`modify -s kcas lamp{$lampid}status=0`
+	    if ( $status ) then
+		exit -5
+	    else 
+		set res=`show -t -s kcas lamp${lampid}status`
+		if ( $status ) then 
+		    exit -5
+		else 
+		    echo $res
+		endif 
+	    endif
+        else
+	    set res=`modify -s kcas lampsoff=1`
+	    if ( $status ) then
+		exit -5
+	    endif
+	endif
+    breaksw 
+    case STATUS:
+    case STAT:
+    case STA:
+    case ST:
+    case S:
+	if ( $lampid >= 0 ) then
+	    set res=`show -t -s kcas lamp${lampid}status`
+	    if ( $status ) then 
+		exit -6
+	    else 
+		echo $res
+	    endif 
+	else 
+	    exit -8
+	endif 
+    breaksw 
+    default:
+	exit -7
+    breaksw
+endsw
+
+exit 0
+

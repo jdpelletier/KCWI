@@ -1,0 +1,59 @@
+#!/usr/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#	elabs -- set/show telescope elevation
+#
+# SYNOPSIS
+#       elabs [el]
+#
+# DESCRIPTION
+#	With no argument, return the current telescope absolute elevation.
+#	With one argument, set the telescope elevation to the specified value. 
+#
+# ARGUMENTS
+#	el = desired elevation angle [deg]
+# 
+# EXAMPLES
+#	1) show the current elevation:
+#	> elabs
+#
+#	2) set the telescope to an elevation of 45 deg:
+#	> elabs 45
+#-
+# Modification history:
+#	2012-Apr-19	GDW	Original version, adapted from ESI
+#-----------------------------------------------------------------------
+
+set cmd = `basename $0`
+set usage = "Usage: $cmd [deg]"
+
+# verify args...
+if ( $#argv > 1 ) then
+  printf "$usage\n\a"
+  exit 1
+endif
+
+# parse args...
+if ( $#argv >= 1 ) then
+    set el = $1
+
+    # verify floating-point values...
+    is_float $el > /dev/null
+    if ( $status ) then
+	printf "[$cmd] ERROR: argument '$el' is not a valid float -- abort!\n\a"
+	exit 2
+    endif
+
+endif
+
+if ( $?el ) then
+    modify -s dcs silent targel=$1 frame=mount targfram=mount movetel=1
+    sleep 3
+    waitfor -s dcs axestat=tracking
+else
+    show -s dcs -terse el
+endif
+
+exit

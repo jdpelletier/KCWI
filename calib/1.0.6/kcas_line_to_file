@@ -1,0 +1,12 @@
+#!/bin/tcsh
+
+if ($# == 7) then 
+    printf "  %-10s" $2 >> $1
+    printf "%-12s" $3 >> $1
+    printf "%6.1f    " $4 >> $1
+    printf " %-8s" $5 >> $1
+    printf "  %-8s" $6 >> $1
+    printf " %-8s\n" $7 >> $1
+endif
+
+exit 0 

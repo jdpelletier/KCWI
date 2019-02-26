@@ -1,0 +1,133 @@
+#!/bin/csh 
+#
+# 170513
+# Matuszewski
+# Script to acquire images with both the guider and the focal plane camera 
+# for long term trending. Should probably be only executed as part of
+# kcas_record  
+#
+#
+# 0. Set the output filename for the information
+set outdir=`show -t -s kbds outdir`/aux
+
+echo "Here."
+
+if (! -d $outdir) then
+    echo "Directory '$outdir' does not exist. Making."
+    mkdir $outdir
+endif 
+
+set fname=${outdir}/fpcam-magiq-`date -u +%y%h%m-%H%M%S`.dat
+touch $fname
+
+
+
+# 1. Check that the cal unit has been homed and that the offsets have
+#    been found. This is not strictly robust, since there could be a
+#calmzero=0, but from experience this is extraordinarily unlikely.
+
+set ifuhomed=`show -t -s kcas ifuhomed`
+if ( $ifuhomed == 0 ) then 
+    echo "ERROR: IFU has not been homed. Exiting." >> /dev/stderr
+    echo "ERROR: IFU has not been homed. Exiting." >> $fname
+    exit -1
+endif 
+
+set calxzero=`show -t -s kcas calxzero`
+if ( $calxzero == 0 ) then
+    echo "ERROR: CAL Unit not focused or centered. Exiting." >> /dev/stderr
+    echo "ERROR: CAL Unit not focused or centered. Exiting." >>  $fname
+    exit -1
+endif 
+
+# 2. Check that the focal plane camera is not closed and that the IFU is
+# in the focal plane camera position.
+
+set camclosed=`show -t -s kfcs closed`
+set ifuname=`show -t -s kcas ifuname`
+set ifuname=`tolower $ifuname`
+
+if ( $camclosed == 1 ) then
+    echo "ERROR: The focal plane camera is closed. Exiting." >> /dev/stderr
+    echo "ERROR: The focal plane camera is closed. Exiting." >> $fname
+    exit -1
+endif
+
+if ( $ifuname != fpcam ) then
+    echo "ERROR: IFU not at focal plane camera. Exiting." >> /dev/stderr
+    echo "ERROR: IFU not at focal plane camera. Exiting." >> $fname
+    exit -1
+endif 
+
+# 3. move some cal axes around (mirror into mirror, polarizer out of beam)
+kcas_movelin calm mirror
+kcas_movelin calp sky 
+
+# 4. Check that the magiq camera can take images? 
+# Not sure how to do this, so ask Shui later. 
+
+# 5. focal plane camera keywords to save
+set kfckeys=(binning exptime)
+set newkfcvals=(4 0.3)
+set oldkfcvals=( $newkfcvals )
+
+@ ctr=1
+foreach kfckey ($kfckeys)
+    echo $kfckey
+    set oldkfcvals[$ctr]=`show -t -s kfcs $kfckey`
+    modify -s kfcs $kfckey=$newkfcvals[$ctr]
+    sleep 0.5
+@ ctr++
+end
+
+
+
+echo "# Start `date -u`" >> $fname
+
+# 6. turn on the appropriate lamps 
+kcas_lamp fear on 
+kcas_shutter fear open 
+
+set dcskeys=( PRIMTEMP SECMTEMP TUBETEMP )
+set patterns = ( PIN300 MIRA TPAT FINBARS MEDBARS )
+
+echo "# Reference images:"
+foreach pattern ($patterns) 
+    kcas_object $pattern
+    kcas_lamp cont off
+    sleep 3
+    saveGuiderImage
+    set mfname=`show -t -s kcwi teststr`
+    set mfname=$mfname:t
+    kcas_lamp cont on
+    sleep 3
+    goifpc 
+    set ffname=`show -t -s kfcs lastfile`
+    set ffname=$ffname:t
+    echo $pattern $ffname $mfname
+    echo $pattern $ffname $mfname >> $fname
+end
+
+kcas_shutter fear close 
+
+# 7. record some temperatures 
+echo "# DCS Temperatures" >> $fname
+show -s dcs $dcskeys >> $fname
+echo >> $fname
+echo "# KCWI Temperatures" >> $fname
+kcwiTempStatus >> $fname
+echo >> $fname
+
+@ ctr=1
+foreach kfckey ($kfckeys)
+    modify -s kfcs $kfckey=$oldkfcvals[$ctr]
+    sleep 0.5
+@ ctr++
+end
+
+
+
+date
+echo "# End: date -u" >> $fname
+echo "Done."
+

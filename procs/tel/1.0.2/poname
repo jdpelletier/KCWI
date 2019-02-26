@@ -1,0 +1,63 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#     poname -- set or show the current pointing origin
+#
+#
+# SYNOPSIS
+#	poname [name]
+# 
+# DESCRIPTION
+#	With no argument, prints the name of the currently selected
+#	pointing origin.  With one argument, reset the current
+#	pointing origin to the named value.
+#
+#	Only functions when DEIMOS is in nighttime mode and can
+#	converse with the drive and control system (DCS) library.
+#
+# ARGUMENTS
+#	name = name of the pointing origin to select
+# OPTIONS
+#
+# EXAMPLES
+#	1) show the current pointing origin
+#		poname
+#
+#	2) capture the name of the current pointing origin in a
+#	shell script variable:
+#		set current_po = `poname`
+# 
+#	3) change the pointing origin to Slit:
+#		poname Slit
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#      dcs: poname
+#
+# SCRIPTS CALLED
+#
+# EXIT STATUS
+#	0 = normal completion
+#
+# Modification history:
+#	2011apr27	MK	Original version
+#-------------------------------------------------------------
+
+# verify args...
+if ( $#argv > 1 ) then
+  set buf = $0
+  set cmd = $buf:t
+  echo "Usage: $cmd [name]"
+  exit 1
+endif
+
+if ($#argv == 0) then
+    show -s dcs -terse poname
+else
+    modify -s dcs poname = $1 poselect = 1
+endif

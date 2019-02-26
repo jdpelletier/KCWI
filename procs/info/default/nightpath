@@ -1,0 +1,124 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#	nightpath -- return the path of the 'nightly' directory
+#
+# SYNOPSIS
+#	nightpath [side] [net]
+#
+# DESCRIPTION
+#	Print a string containing the predicted name of the 'nightly'
+#	directory into which cam images and other nightly data are placed.
+#	This directory is predicted based on the instrument in use and can
+#	be overridden by use of the "side" parameter.
+#	String is printed to stdout
+#
+# ARGUMENTS
+#	side = [1|2] Telescope side in use (1=Keck I, 2=Keck II)
+#	net  = [h|s] Network (h = HQ, s = summit)
+# 
+#
+# OPTIONS
+#
+# EXAMPLES
+#	1) Generate the summit nightly directory path for the current 
+#	instrument:
+#		nightpath
+# 
+#	2) Generate the HQ nightly directory path for Keck II:
+#		nightpath 2 h
+#
+#	3) Generate an alias to switch to the appropriate directory:
+#		alias cdn	'chdir `nightpath \!*` ; pwd'
+# 
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#
+# SCRIPTS CALLED
+#
+# EXIT STATUS
+#	0 = normal completion
+#	1 = wrong number of arguments
+#
+# SEE ALSO
+#-
+#
+# Modification History:
+#	2001-Jun-27	GDW	Original version
+#	2001-Feb-20	RWG	Added "net" argument
+#	2001-Feb-23	GDW	Added "k1" and "k2" options
+#				Made default option k1
+#       2011-Feb-29   	MK	Modified for use with MOSFIRE
+#       2015-Oct-20     LR      Modified for use with KCWI
+#-----------------------------------------------------------------------
+
+# define initial values...
+set buf = $0
+set cmd = $buf:t
+set usage = "Usage: $cmd [1|2] [h|s]"
+set side = 2
+set net = "s"
+
+# define side based on instrument...
+if ( $?INSTRUMENT ) then
+	switch ( $INSTRUMENT)
+		case esi:
+                case nirc2:
+		case nirspec:
+		case deimos:
+                case kcwi:
+                case k2:
+			set side = 2
+			breaksw
+		case lris:
+		case hires:
+		case nirc:
+		case lws:
+		case mosfire:
+		case osiris:
+                case k1:
+                default:
+			set side = 1
+			breaksw
+	endsw
+endif
+
+# Parse arguments.
+while ($#argv > 0)
+    switch ($1)
+    case "1":
+    case "2":
+        set side = $1
+        breaksw
+
+    case "h":
+    case "s":
+        set net = "$1"
+        breaksw
+
+    default:
+        cat <<HUH
+
+Did not understand the argument "$1".
+
+$usage
+
+HUH
+        exit 1
+
+    endsw
+    shift
+end
+
+# define the directory head based on the side...
+set head = /$net/nightly$side
+
+
+# generate the directory tail based on the date...
+date -u "+$head/%y/%m/%d/"

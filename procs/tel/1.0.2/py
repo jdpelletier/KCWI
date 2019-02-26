@@ -1,0 +1,58 @@
+#!/bin/csh -f
+#+
+#KCWI library of scripts
+#
+#NAME
+#       py -- move telescope in pixel coordinates only in X
+#
+#SYNOPSIS
+#	py y
+#
+# DESCRIPTION
+#	Move the telescope a given number of pixels in the "y" 
+#	direction.
+# 
+# Arguments:
+#	x = offset in the direction parallel with CCD cols [pixels]
+# 
+#OPTIONS
+#       NONE
+#
+# EXAMPLES:
+#	1) Move the telescope 100 pixels in "y":
+#		py 100 
+#	Note that since this is a *telescope* move, the target will
+#	"move" in the OPPOSITE direction!
+#
+# #ENVIRONMENT VARIABLES
+#     list of environment variables used
+#
+#FILES
+#     list of files used
+#
+#SERVERS & KEYWORDS
+#     
+#     service = kcwi
+#          keywords: sfilter/ifilter, sscale
+#
+#SCRIPTS CALLED
+#
+#     help, syncheck
+#
+#EXIT STATUS:
+#	0 = normal completion
+#	1 = wrong number of arguments
+#	2 = arguments not floating point
+#
+#-
+# Modification history:
+#       2011apr11  MK  Original version
+#-----------------------------------------------------------------------
+
+# check args...
+if ( $#argv != 1 ) then
+  echo "Usage: py y "
+  exit 1
+endif
+
+pxy 0 $1

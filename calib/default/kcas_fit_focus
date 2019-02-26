@@ -1,0 +1,91 @@
+#!/bin/python
+"""
+161025
+Matuszewski -- matmat@caltech.edu
+
+Purpose:
+Load a KCWI focus curve data table, fit, and compute best focus position
+
+Parameters:
+filename that contains data in the format:
+
+calmoffset calmenc fwhm1 fwhm2 fwhm_combined
+
+"""
+
+
+import numpy as np
+import sys
+import matplotlib.pyplot as plt
+
+def kcas_fit_focus(filename):
+    """
+    read in data from filename and fit a parabola to the through
+    focus curve
+    """
+
+    try:
+        focarr=np.loadtxt(filename, comments='#')
+    except IOError:
+        print "Opening file failed."
+        exit(1)
+
+    offset=focarr[:,0]
+    enc=focarr[:,1]
+    fw=focarr[:,4]
+
+    plotting=0
+
+    if plotting:
+        plt.plot(offset,fw)
+        plt.xlabel('CALM Offset (cts)')
+        plt.ylabel('FWHM (pix)')
+    
+    mn = np.min(fw)
+    mnidx = np.argmin(fw)
+
+    
+
+    x0=mnidx-2
+    x1=mnidx+3
+
+    if x0 < 0:
+        x0=0
+    
+    if x1 > fw.size-1:
+        x1=fw.size-1
+    
+    subfw=fw[x0:x1]
+    subof=offset[x0:x1]
+
+    if plotting:
+        plt.plot(subof,subfw)
+
+    p=np.polyfit(subof,subfw,2)
+
+    fit=p[2]+p[1]*subof+p[0]*subof*subof
+
+    plt.plot(subof,fit)
+
+    bestfoc=-p[1]/(2*p[0])
+    ack="BESTFOC: {:7d}".format(int(bestfoc))
+    print ack
+    
+    if plotting:
+        plt.title('KCAS Focus; '+ack)
+        plt.show()
+
+
+if __name__ == "__main__":
+    if ( len(sys.argv) != 2 ):
+        print "Insufficient parameters."
+        print "Usage: "
+        print"   kcas_fit_focus <filename>"
+        exit(-1)
+
+    fname = sys.argv[1]
+
+    kcas_fit_focus(fname)
+
+    exit(0)
+

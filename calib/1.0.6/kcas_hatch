@@ -1,0 +1,62 @@
+#!/bin/tcsh -f
+
+set timeout=5
+
+set servers=( kcas ) 
+foreach server ($servers)
+    if (! `kcwiCheckServer $server`) then
+	echo "Error: $server not running." >> /dev/stderr
+	exit -1
+    endif
+end
+
+if ( ($# > 1) ) then
+    echo "Error: Invalid number of arguments." >> /dev/stderr
+    exit -2
+endif
+
+set action="STATUS"
+
+if ( $# == 1) then 
+    set action=`echo $1 | tr "a-z" "A-Z"`
+endif
+
+switch ( $action )
+    case STATUS:
+    case STAT:
+    case STA:
+    case ST:
+    case S:
+	set val=-1
+    breaksw
+    case OPEN:
+    case OPE:
+    case OP:
+    case ON:
+    case 1:
+	modify -s kcas hatchstatus=1
+	set val=1
+    breaksw
+    case CLOSE:
+    case CLOS:
+    case CLO:
+    case CL:
+    case C:
+    case OFF:
+    case OF:
+    case 0:
+	modify -s kcas hatchstatus=0
+	set val=0
+    breaksw
+endsw
+
+if ( $val >= 0 ) then
+    gwaitfor -t $timeout -s kcas hatchstatus == $val
+endif
+
+if ( $val < 0 ) then
+    echo `show -t -s kcas hatchstatus`
+endif
+
+
+exit 0 

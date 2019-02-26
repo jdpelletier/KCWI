@@ -1,0 +1,112 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#     kcwiKillRPCEntry - removes an entry from the RPC registry
+#
+# SYNOPSIS
+#     kcwiKillRPCEntry service
+#
+# DESCRIPTION
+#     Attempts to remove an entry from the RPC registry.  If successful, exits
+#     with status 0, otherwise prints error and exits with non-zero status.
+#
+# OPTIONS
+#     service
+#          rpc server name for which to remove entry
+#
+# EXAMPLES
+#     kcwiKillRPCEntry kprs
+#         Removes the RPC registry entry for kprs server.
+#
+# ENVIRONMENT VARIABLES
+#     Kxxx_PROGNUM's
+#
+# FILES
+#     none
+#
+# SERVERS & KEYWORDS
+#     none
+#
+# SCRIPTS CALLED
+#     help, syncheck, rpcinfo
+#
+# EXIT STATUS
+#     0 - normal exit, no error
+#     1 - script aborted by an interrupt
+#     2 - syncheck error
+#     3 - error parsing command line input
+#     other errors...
+#
+# SEE ALSO
+#     ???
+#-
+#
+# Modification History:
+# 20060608 - JLW: Initial version created, modified from osiris
+#
+
+# Boiler plate for "-h" support for command autohelp.
+
+if ("$1" == "-h") then
+    help $0 | more
+    exit $status
+endif
+
+# Boilerplate for syncheck.
+# Note that the boiler plate should be transparent for all usages,
+# but to make correct use of syncheck you will need to specify the
+# correct pattern.
+
+set noglob
+set servlist = "[kp1s,kp2s,kp3s,kt1s,kt2s,kbgs,kbvs,kbes,kbms,kbds,kros,kcas,kfcs,kcwi]"
+set CheckStatus = `syncheck -command $0 $* -pattern ${servlist}` 
+unset noglob
+
+if ("$CheckStatus" != "OK") then
+    help $0 | more
+    exit 2
+endif
+
+# End of help/syncheck boiler plate.
+
+# Set up to trap interrupts (Ctrl-C, etc.)
+onintr abort
+
+# Set default variable values
+set fcmd = $0
+set cmd = ${fcmd:t}
+set owner = ""
+
+# Get the command line argument
+set service = $1
+
+# Formulate the environment variable name that stores the PROGNUM
+set sNAME = `echo $service | gawk '{print toupper($0)}'`
+set varname = "${sNAME}_PROGNUM"
+
+# Get the PROGNUM for this service
+set num = `env | grep $varname | cut -f2 -d"="`
+
+# Remove the entry
+# Linux does not seem to implement this
+# skip for now
+goto done
+
+/usr/sbin/rpcinfo -d $num 1
+set error = $status
+if ($error != 0) then
+    echo "${cmd}: Unable to remove entry from RPC registry."
+    exit 4
+endif
+
+goto done
+
+abort:
+# Block of code to handle interrupts.
+exit 1
+
+done:
+# is there anything that needs to go here?
+exit

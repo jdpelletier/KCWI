@@ -1,0 +1,115 @@
+#! /kroot/rel/default/bin/kpython
+    
+import ktl
+import argparse
+
+from KeckAlarm.GenericMonitor import AlarmHandler
+from KCWI import Blue
+ 
+description = "Alarm handler for KCWI blue detector heater"
+parser = argparse.ArgumentParser(description=description)
+parser.add_argument('action',help='action to be performed (enable,disable,snooze,status)',\
+                    choices=['enable','disable','snooze','status'],nargs='?')
+parser.add_argument('minutes',help='minutes to snooze for',nargs='?',default=0)
+parser.add_argument('-debug',help='Forces verbose output on screen. Not recommended for cronjobs',action='store_true',required=False, default=False)
+
+
+# Instantiate the class: create the alarm with a name
+Monitor = AlarmHandler('range')
+
+# the set temperature comes from a keyword, and at this point we already know 
+# that the service is operational
+Monitor.whoFrom = 'kcwirun@keck.hawaii.edu'
+Monitor.whoWarning = 'matmat@caltech.edu; lrizzi@keck.hawaii.edu; neilljd@gmail.com; kcwi_warnings@keck.hawaii.edu'
+Monitor.whoInfo = 'matmat@caltech.edu; lrizzi@keck.hawaii.edu; neilljd@gmail.com; kcwi_info@keck.hawaii.edu'
+#Monitor.whoWarning = 'luca.kilohi@gmail.com'
+#Monitor.whoInfo = 'luca.kilohi@gmail.com'
+Monitor.host = 'kcwiserver'
+Monitor.user = 'kcwirun'
+
+# EMAILS 
+
+# server is not running
+Monitor.serviceNotRunning['subject'] = "Warning: The KBVS service is not running"
+Monitor.serviceNotRunning['body'] = \
+           """This is an info email that the KBVS server is not running.
+
+           1. Log into kcwiserver as user kcwi
+           2. Type the following command:
+               "ctx" to determine the state of the instrument servers
+           3. Run kcwi restart servers  to restart servers."""
+
+# alarm has been manually disabled, and more than 1 day has passed
+Monitor.alarmsDisabled['subject'] = "Info: The KBVS alarms are currently disabled"
+Monitor.alarmsDisabled['body'] = \
+            """This is just a friendly reminder that alarms for the KCWI detector 
+            temperatures have been disabled by user request.  This message
+            will be sent out daily until alarms are re-enabled.  Follow
+            these steps to re-enable temperature monitoring:
+
+            1. Log into kcwiserver as user "kcwi"
+            2. Type the following command:
+                vacion_on enable"""
+
+# server is running, but the keyword is not available or has invalid value
+Monitor.missingValue['subject'] = "Warning: no KCWI Vac-Ion status is available"
+Monitor.missingValue['body'] = \
+            """The KBVS service is not returning valid Vac-Ion status readings.
+            
+            The monitor script will email alarms every 10 minutes until the 
+            situation is corrected or the alarms are disabled."""
+
+# real alarm: the value is out or range
+Monitor.raiseAlarm['subject'] = "WARNING: KCWI Vac-ion may me off"
+Monitor.raiseAlarm['body'] = \
+            """ The KCWI Vac-Ion monitor has detected that the Vac-Ion power is out of range.
+
+            Check the Vac-Ion Power
+
+            This message will be sent at 10 minutes intervals until the problem is corrected or the 
+            alarms are disabled."""
+
+# this string is added to the log file afte the date and before the value, as in 
+# <date> <time> <tkloggerString> <keyword=value>
+Monitor.tkloggerString=" VacIon vacion power now "
+
+# directory, file names for the logfile and for the status file
+Monitor.setLogInfo('/sdata1400/kcwi_logs/monitors','vacion','.vacion_status')
+
+
+# parsing arguments
+args = parser.parse_args()
+if args.action:
+    Monitor.action(args.action, args.minutes)
+if args.debug:
+    Monitor.debug = True
+
+# is the alarm enable, disables, snoozed?
+Monitor.checkStatus()
+
+# setup communication with the server
+Monitor.setAndCheckService('kbvs')
+
+# define the expected value reading from a keyword
+#import ktl
+#kt1s = ktl.cache('kt1s')
+#setTemp = float(kt1s['trgtmp1'].read())
+#Monitor.targetValue = setTemp
+
+# other option: setup expected value manually
+#Monitor.units = "K" # valid values are C or K
+Monitor.targetValue = 1.0
+Monitor.minValue = 1.0 # setTemp-5
+Monitor.maxValue = 1.0 # setTemp+5
+# keyword to monitor
+Monitor.valueKeyword = 'hvon'
+# if keyword cannot be read for longer than this time, send out a warning (minutes)
+Monitor.maxDelay = 10
+
+# main program
+status = Blue.is_in_filling_position()
+if status is False:
+    Monitor.mainCheck()
+else:
+    pass
+

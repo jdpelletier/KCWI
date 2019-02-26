@@ -1,0 +1,75 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#        gotoxy -- move the telescope in GUIDER coordinates
+#
+# SYNOPSIS
+#	gotoxy x y
+#
+# Purpose:
+#	Offset the telescope by the given number of arcseconds in the
+#	guider coordinate system from the marked BASE.
+#       The guider coordinate system is rotated 180 degrees relative
+#	to the KCWI coordinate system. 
+#
+# ARGUMENTS
+#	x = offset from BASE in the direction parallel with guider rows [arcsec]
+#	y = offset from BASE in the direction parallel with guider columns [arcsec]
+# 
+# OPTIONS
+#
+# EXAMPLES
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#    servers: dcs 
+#      keywords: tvxoff, tvyoff
+#
+# SCRIPTS CALLED
+#
+# EXIT STATUS
+#	0 = normal completion
+#	 1 = wrong number of arguments
+#
+# Modification history:
+#	2011apr27	MK	Original version
+#	2013sep25	MK/GDW	Added wftel
+#       2017jun16       matmat  Adapted gxy --> gotoxy
+#-------------------------------------------------------------
+
+# Set default variable values
+set cmd=`basename $0`
+
+# check args...
+if (${#argv} != 2) then
+  echo "Usage: gotoxy x y"
+  exit 1
+endif
+
+# verify floating-point values...
+is_float $* > /dev/null
+if ( $status ) then
+  echo "ERROR -- Argument must be valid floating-point numbers"
+  exit 2
+endif
+
+# Grab the current value of autpause...
+set autresum=`show -s dcs -terse autresum`
+
+# effect the move...
+set x=$1
+set y=$2
+modify -s dcs silent tvxoff=$x tvyoff=$y rel2base=t
+
+# wait for guider to cycle twice...
+set startTime=`date +"%s"`
+wftel $autresum
+set endTime=`date +"%s"`
+set elapsedTime=`calc $endTime - $startTime`
+echo ${cmd}: wftel completed in $elapsedTime sec
+exit

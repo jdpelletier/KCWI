@@ -1,0 +1,166 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#	UTDate - provide date in UT
+#
+# SYNOPSIS
+#	UTdate
+#
+# DESCRIPTION
+# returns the UT date for the night's observing.  Note that the UT date
+# actually changes at 2 p.m. HST.  However, this will return TONIGHT's
+# UT date if it is after 10 a.m. HST, anticipating that it is being 
+# used by tonight's observer starting software earlier than 2 p.m. HST.
+#
+# UTC date changes at 2 p.m. HST.
+# After UTC 18 hr (HST 8 a.m.) assume that the required UTC date is one
+# larger than it currently is.  This is to handle directory construction
+# done between 8 a.m. and 2 p.m., when the UTC date will be less than
+# the UTC date of that (HST) night.
+#
+# ARGUMENTS
+#	 none
+#
+# OPTIONS
+#
+# EXAMPLES
+#	UTdate
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#
+# SCRIPTS CALLED
+#
+# EXIT STATUS
+#
+# SEE ALSO
+#-
+#
+# Modification History:
+#       2011-Feb-29   	MK	Modified for use with MOSFIRE
+#       2015-Oct-20     LR      Added to KCWI script library
+# -------------------------------------------------------------
+
+
+set UThr = `date -u | awk '{print $4}' | sed 's/:..*//' `
+
+set day = `date -u | awk '{print $3}' `
+set month = `date -u | awk '{print $2}' `
+set yr = `date -u | awk '{print $6}' `
+
+if ($UThr > 18) then
+
+set day = `expr $day + 1`
+
+switch ($month)
+case "Jan":
+    if ($day == "32") then
+        set month = "feb"
+        set day = 1
+    endif
+    breaksw
+
+case "Feb":
+    set leap = `expr 4 \* \( $yr / 4 \) - $yr`
+    if ($day == "29" && $leap != "0") then
+        set month = "mar"
+        set day = 1
+    else if ($day == "30" && $leap == "0") then
+        set month = "mar"
+        set day = 1
+    endif
+    breaksw
+ 
+case "Mar":
+    if ($day == "32") then
+        set month = "apr"
+        set day = 1
+    endif
+    breaksw
+ 
+case "Apr":
+    if ($day == "31") then
+        set month = "may"
+        set day = 1
+    endif
+    breaksw
+ 
+case "May":
+    if ($day == "32") then
+        set month = "jun"
+        set day = 1
+    endif
+    breaksw
+ 
+case "Jun":
+    if ($day == "31") then
+        set month = "jul"
+        set day = 1
+    endif
+    breaksw
+ 
+case "Jul":
+    if ($day == "32") then
+        set month = "aug"
+        set day = 1
+    endif
+    breaksw
+ 
+case "Aug":
+    if ($day == "32") then
+        set month = "sep"
+        set day = 1
+    endif
+    breaksw
+ 
+case "Sep":
+    if ($day == "31") then
+        set month = "oct"
+        set day = 1
+    endif
+    breaksw
+ 
+case "Oct":
+    if ($day == "32") then
+        set month = "nov"
+        set day = 1
+    endif
+    breaksw
+ 
+case "Nov":
+    if ($day == "31") then
+        set month = "dec"
+        set day = 1
+    endif
+    breaksw
+ 
+case "Dec":
+    if ($day == "32") then
+        set month = "jan"
+        set day = 1
+        set yr = `echo $yr + 1 | expr`
+    endif
+    breaksw
+ 
+endsw
+endif
+
+# Make sure day has two digits.
+
+if ($day < 10) set day = "0$day"
+
+# Remove capital letters from month.
+
+set month = `echo $month | sed 'y/JFMASOND/jfmasond/'`
+
+# Remove first two digits from year.
+
+#set yr = `echo $yr | sed 's/\(..\)\(..\)$/\2/' `
+
+
+set UTdate = `echo $yr$month$day`
+echo $UTdate

@@ -1,0 +1,143 @@
+#!/bin/csh -f
+#
+#  debug_server  servername, servertype, debug_config_#  pseudo_serial_port tserver_name ts_port
+#
+# 5 logging configurations supported
+#
+# Assumes tnet already running if it is required.
+#
+# 2010/05/12 - CRO.  Based on JLW:  "debug_mpas"
+#
+
+set default_config=1
+set config=$default_config
+set logmask=0
+set desc0="0: (-v 0) No logging"
+set desc1="1: (-v 256) Minimal logging (USER1 only)"
+set desc2="2: (-v 270) Normal lab running (DEBUG 2-4, USER 1)"
+set desc3="3: (-v 3840) Normal debugging, just application messages (USER 1-4)"
+set desc4="4: (-v 3854) Normal debugging (DEBUG 2-4, USER 1-4)"
+set desc5="5: (-v 3899) Normal debugging with portio (DEBUG 2-5+8, USER 1-4)"
+set desc6="6: (-v 4095) Full on logging"
+
+set desc=""
+
+if ($#argv != 6) then
+  goto usage
+endif
+
+set sn = $1
+set sp = $2
+set config = $3
+set p_port=$4
+set tserver=$5
+set ts_port=$6
+
+switch ($config) 
+    case 0:
+      # No logging
+      set logmask=0
+      set desc=`echo $desc0`
+      breaksw
+    case 1:
+      # for very minimal logging
+      # USER 1
+      set logmask=256
+      set desc=`echo $desc1`
+      breaksw
+    case 2:
+      # for normal lab running
+      # DEBUG 2-4, USER 1
+      set logmask=270
+      set desc=`echo $desc2`
+      breaksw
+    case 3:
+      # just user
+      # USER 1-4
+      set logmask=3840
+      set desc=`echo $desc3`
+      breaksw
+    case 4:
+      # for normal debugging
+      # DEBUG 2-4, USER 1-4
+      set logmask=3854
+      set desc=`echo $desc4`
+      breaksw
+    case 5: 
+      # for debugging with portio logged
+      # DEBUG 2-5 + 8, USER 1-4
+      set logmask=3998
+      set desc=`echo $desc5`
+      breaksw
+    case 6: 
+      # for full on logging use 
+      # DEBUG 1-8, USER 1-4
+      set logmask=4095
+      set desc=`echo $desc6`
+      breaksw
+    default: 
+      goto usage
+endsw
+
+# Deal with tnet
+if ( $p_port == 0 ) then
+  echo "$sn does not use tnet"
+else
+  ps -ef | grep tnet | grep $ts_port >> /dev/null
+  if ($status == 0 ) then
+    echo "tnet already running for $tserver $ts_port"
+  else
+   echo "Starting tnet"
+   tnet $p_port $tserver $ts_port &
+  endif
+endif
+
+echo Starting server with configuration $desc
+
+rpcKey_server -l $sp"_service" -s $sn -v $logmask &
+
+exit
+
+usage:
+echo
+echo "USAGE: debug_server s_name s_type config# p_port ts_name ts_port"
+echo 
+echo "where"
+echo "  s_name  = server name"
+echo "  s_type  = server type"
+echo "  config# = debug configuration level number" 
+echo "  p_port  = pseudo terminal name (0 if tnet not used)" 
+echo "  ts_name = terminal server hostname (0 if tnet not used)"
+echo "  ts_port = terminal server port number (0 if tnet not used)"
+echo 
+echo "  config levels:"
+echo $desc0
+echo $desc1
+echo $desc2
+echo $desc3
+echo $desc4
+echo $desc5
+echo $desc6
+echo
+exit
+
+# Log levels defined in $KROOT/ktl/keyword/ktl/apps/util/errlog.h
+#
+#  Level     Mask      What uses it
+# -------   ------    --------------------------------------------------
+# DEBUG1         1    Unused
+# DEBUG2         2    rpc_if_functions
+# DEBUG3         4    portio open and close; timerThread
+# DEBUG4         8    kwAccessors
+# DEBUG5        16    rpcKey_serverFuncs function entry; portio config
+# DEBUG6        32    rcKey_serverFuncs misc entry, broadcast with kw
+# DEBUG7        64    rpcKey_serverFuncs broadcast func entry, clnt call time
+# DEBUG8       128    portio bytes on I/O, terminal config
+# USER1        256
+# USER2        512
+# USER3       1024
+# USER4       2048
+# TRIGGER1    4096
+# TRIGGER2    8092
+# TRIGGER3   16384
+# TRIGGER4   32768

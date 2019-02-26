@@ -1,0 +1,29 @@
+#!/bin/csh 
+#
+# 160922
+# Matuszewski
+# Wrapper for kcas_movelin calx/caly 
+#
+# 
+
+if ( $# == 0 ) then
+    set obj=`show -t -s kcas calxname`
+    echo $obj
+    exit 0 
+endif
+
+
+kcas_movelin calx $1
+if ( $status ) exit 1
+
+kcas_movelin caly $1
+if ( $status ) exit 1
+
+# Attempt one iteration at recovery 
+set newobj=( `show -t -s kcas calyname`)
+set newobj=`tolower $newobj`
+set cmdobj=`tolower $1`
+
+if ($newobj != $cmdobj) then
+    echo "Put thing to home y here."
+endif

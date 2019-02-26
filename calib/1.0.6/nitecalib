@@ -1,0 +1,20 @@
+#!/bin/csh
+#
+# 170419
+# Matuszewski -- matmat@caltech.edu
+#
+# Wrapper for kcas_calib.sh for afternoon calibrations
+# 
+# 
+
+if ( $# != 1) then 
+    echo "Insufficient arguments"
+    echo "Usage: "
+    echo "nitecalib <calibration_file.cal>"
+    exit 1
+endif
+
+echo "kcas_calib.sh  -n -f $1"
+kcas_calib.sh  -n -f $1
+date
+echo "Done with kcas_calib -n -f $1"

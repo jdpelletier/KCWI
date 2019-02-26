@@ -1,0 +1,91 @@
+#!/bin/csh -f
+#+
+#KCWI library of scripts
+#
+#NAME
+#       mov -- move an object to a given position on the detector
+#
+# SYNOPSIS:
+#	mov [-n] x1 y1 x2 y2
+# 
+#DESCRIPTION
+#	Given the starting pixel coordinates of an object on a
+#	DEIMOS image, and destination coordinates, compute and apply the
+#	required telescope move the object as desired.
+#
+# ARGUMENTS:
+#	-n = no move, only print the required shift
+#	x1 = starting column location of object [pixels]
+#	y1 = starting row location of object [pixels]
+#	x2 = ending column location of object [pixels]
+#	y2 = ending row location of object [pixels]
+# 
+#OPTIONS
+#      none
+# 
+# EXAMPLE:
+#	1) Move a target at pixel (100,200) to pixel (300,400):
+#		mov 100 200 300 400
+#
+#	2) Display the telescope move required to shift a target at
+#	pixel (100,200) to the pixel (300,400) without moving the telecope:
+#		mov -n 100 200 300 400
+#
+##ENVIRONMENT VARIABLES
+#     
+#
+#FILES
+#     
+#
+#SERVERS & KEYWORDS
+#
+#
+#SCRIPTS CALLED
+#     mxy
+#
+#EXIT STATUS:
+#	0 = normal completion
+#	1 = wrong number of arguments
+#	2 = arguments not valid floating-point numbers
+#
+#-
+# Modification history:
+#      2011apr18  MK  Original version
+#-----------------------------------------------------------------------
+
+# check for no-move flag...
+if ( "$1" == "-n" ) then
+  set string = "Required shift is"
+  set move = 0
+  shift
+else
+  set string = "Moving"
+  set move = 1
+endif
+
+# check args...
+if (${#argv} != 4) then  
+  echo "Usage: mov [-n] x1 y1 x2 y2"
+  exit 1
+endif
+
+# verify floating-point values...
+is_float $* > /dev/null
+if ( $status ) then
+  echo "ERROR: Arguments must be valid floating-point numbers"
+  exit 2
+endif
+
+set x1 = $1
+set y1 = $2
+set x2 = $3
+set y2 = $4
+
+# set scale...
+set pscale = 0.0076
+#set pscale = `show -s kcwi -terse pscale`
+# apply shift...
+set dx = `math "$pscale * ($x2 - $x1)"`
+set dy = `math "$pscale * ($y2 - $y1)"`
+echo "$string $dx arcsec in x and $dy arcsec in y"
+if ( $move) mxy $dx $dy

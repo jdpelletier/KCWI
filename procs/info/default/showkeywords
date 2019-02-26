@@ -1,0 +1,136 @@
+#!/bin/csh -f
+#+
+# MOSFIRE library of scripts
+#
+# NAME
+#	show all keywords 
+#
+# SYNOPSIS
+#	showkeywords [service]
+#
+# DESCRIPTION
+#	Show all the keywords for a particular keyword service. By default it will show
+#
+# ARGUMENTS
+#	 service - keyword service name (default is to use the global server)
+#		 Mcsus   - CSU server
+#		 Mscs    - speed controller CCRs
+#		 Mdhs    - cabinet dgh modules (heater server)
+#		 Mds     - detector server
+#		 Mmf1s   - filter wheel 1
+#		 Mmf2s   - filter wheel 2
+#		 Mmdcs   - dust cover
+#		 Mmgts   - grating turret
+#		 Mmgss   - grating shim
+#		 Mfcs    - flexure compensation
+#		 Mmprs   - pupil rotator
+#		 Mtcs    - temperature control
+#		 Mp1s    - power server 1
+#		 Mp2s    - power server 2
+#		 Mpas    - pressure
+#		 Mosfire - global server
+# OPTIONS
+#	
+#
+# EXAMPLES
+#	show the keywords for the csu
+#	     showkeywords mcsus
+#       show the mosfire global server keywords
+#            showkeywords
+#
+# ENVIRONMENT VARIABLES
+#	list of environment variables used
+#
+# FILES
+#	list of files used
+#
+# SERVERS & KEYWORDS
+#	     
+#
+# SCRIPTS CALLED
+#	list of the scripts called by this script, for example:
+#
+#	help, syncheck
+#
+# EXIT STATUS
+#	0 - normal exit, no error
+#	1 - script aborted by an interrupt
+#	2 - syncheck error
+#	3 - error parsing command line input
+#	other errors...
+#
+# SEE ALSO
+#	???
+#-
+#
+# Modification History:
+# 2012-Mar-01   MB  Original Version
+#
+
+# Boiler plate for "-h" support for command autohelp.
+
+if ("$1" == "-h") then
+    help $0 
+    exit $status
+endif
+
+# Check for correct number of arguments
+if (${#argv} > 1) then  
+  goto EOF
+endif
+
+#set the service name
+if (${#argv} == 1) then  
+  set service = $1
+else
+  set service = "mosfire"
+endif
+
+
+#change to all lower case
+set service = `tolower $service`
+# create an upper case version
+set bigserv = `toupper $service`
+
+set flag = 0
+foreach lib ( mcsus mscs mdhs mds mmf1s mmf2s mmdcs mmgts mmgss mfcs mmprs mtcs mp1s mp2s mpas mosfire ) 
+   if ($service == $lib) then
+	set flag = 1
+   endif
+   
+end
+
+if ($flag)  then
+    show -s $service keywords | sed -e "s/^/$bigserv./" | sort
+    exit 1
+endif
+
+
+EOF:
+cat <<EOF2
+*********************************************************************
+  Usage: showkeywords [service]
+    Where service may be any of the following (default is "mosfire"):
+	service  - Description
+        -------    ----------------------------------- 
+	 mcsus   - CSU server
+	 mscs    - speed controller CCRs
+	 mdhs    - cabinet dgh modules (heater server)
+	 mds     - detector server
+	 mmf1s   - filter wheel 1
+	 mmf2s   - filter wheel 2
+	 mmdcs   - dust cover
+	 mmgts   - grating turret
+	 mmgss   - grating shim
+	 mfcs    - flexure compensation
+	 mmprs   - pupil rotator
+	 mtcs    - temperature control
+	 mp1s    - power server 1
+	 mp2s    - power server 2
+	 mpas    - pressure
+	 mosfire - global server
+*********************************************************************
+
+EOF2
+
+echo "$service"

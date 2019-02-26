@@ -1,0 +1,19 @@
+#!/bin/csh
+#
+# 170301 -- Matuszewski
+# Acquire and analyze focus data.
+
+# generate a file 
+
+set logfile=`date +%y%m%d-%H%M%S`.imfile
+
+
+echo "Configuring KCWI for focus measurements"
+restore_state $RELDIR/data/kcwi/calibrations___kcwi_focus.state
+
+kcwi-focus-acquire-bars $logfile
+kcwi-focus-analyze `cat $logfile`
+
+
+echo "Done."
+

@@ -1,0 +1,88 @@
+#!/bin/csh -f
+#+
+# MOSFIRE library of scripts
+#
+# NAME
+#	set_state -- reconfigure DEIMOS
+#
+# SYNOPSIS
+#	set_state [-verify] [-debug]
+#
+# DESCRIPTION
+#	Change the state of DEIMOS stages or detector systems.
+#	This script is simply a front-end to the restore_state script.
+#	Outputs: None, unless -debug option is set
+#
+# ARGUMENTS
+#	none
+#
+# OPTIONS
+#	-(v)erify	validate keywords upon completion
+#	-(d)ebug	print troubleshooting output
+#       -(w)aitcsu      force a wait for the csu move
+#
+# EXAMPLES
+#	Need to specify examples:
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#
+# SCRIPTS CALLED
+#
+# EXIT STATUS
+#	 0 = normal completion
+#	 1 = error parsing input save file
+#	 2 = fatal error
+#	 4 = error running script file
+#	 8 = error validating keyword
+#
+# SEE ALSO
+#-
+#
+# Modification history:
+#	2004-Oct-13	gwirth	Original version
+#       2012-Mar-09     MK      Modified for use with MOSFIRE
+#       2012-Aug-16     MK      Added a force wait for CSU moves.
+#-----------------------------------------------------------------------
+
+set cmd = `basename $0`
+set usage = "Usage: $cmd"
+
+# parse flags...
+set flags = ()
+while ( $#argv > 0 )
+
+    # save flags...
+    if ( "$1" =~ \-* ) then
+	set flags = ($flags $1)
+	shift
+	continue
+    endif
+
+    # quit if no flags...
+    break
+end
+
+# verify args...
+if ( $#argv > 0 ) then
+  printf "$usage\n"
+  exit 1
+endif
+
+# allocate a save file...
+## set save_file = ~/.$cmd.$$
+set save_file = `mktemp ~/save_state.XXXXXXX`
+if ( ! -z $save_file ) then
+    printf "[$cmd] ERROR: failed to create save file $save_file -- abort!\n\a"
+    exit 1
+endif
+
+# snarf input from STDIN and put into save file...
+cat >> $save_file
+
+# run restore_state using the save file as input...
+restore_state -clobber $flags $save_file
+exit $status

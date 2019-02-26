@@ -1,0 +1,16 @@
+#!/bin/csh -f
+
+set server=kbes
+alias ss "show -s $server -terse"
+
+foreach id (ca gt ft gp fp gr)
+    echo --------------------------
+    echo `./kbesGetNameFromPrefix $id`
+    set kw=spd${id}
+    echo "Speed (${kw})=  "`ss ${kw}`
+    set kw=acc${id}
+    echo "Acc   (${kw})=  "`ss ${kw}`
+    set kw=dec${id}
+    echo "Dec   (${kw})=  "`ss ${kw}`
+    echo --------------------------
+end

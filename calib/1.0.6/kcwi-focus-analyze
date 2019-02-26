@@ -1,0 +1,194 @@
+#!/usr/bin/python
+#!
+"""
+2017-01-27
+Matuszewski -- matmat@caltech.edu
+Through-focus analysis for the KCWI bar data
+This makes some assumptions:
+2 amp readout (fast is OK)
+Does not change the binning.
+
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+from astropy.io import fits as fits
+from scipy.optimize import curve_fit
+import sys 
+import math
+import subprocess
+
+def gauss_function(x, a, b, x0, sigma):
+    return a*np.exp(-(x-x0)**2/(2*sigma**2))+b
+
+def barpeaks(row, count=120, margin=7):
+    "Extracts a list of peak widths and locations from the row."
+    workrow=row
+    workmedian=np.median(workrow)
+    # print workrow.shape
+    xvals=np.arange(workrow.shape[0])
+    # print xvals
+    pkloc=-1000
+    pksig=-1000
+    for x in range (0,count-1):
+        maxidx=np.argmax(workrow)
+        maxval=np.amax(workrow)
+
+        negidx=maxidx-margin
+        if negidx < 0:
+            negidx=0
+
+        posidx=maxidx+margin
+        if posidx > workrow.shape[0]-1:
+            posidx=workrow.shape[0]-1
+
+        subxvals=xvals[negidx:posidx]
+        subyvals=workrow[negidx:posidx]
+
+
+        # fit a gaussian to the bar
+        # not strictly right, but close enough
+        p0=[maxval,0,maxidx,3.0]
+        popt,popv=curve_fit(gauss_function,subxvals,subyvals,p0)
+        pkloc=np.append(pkloc,popt[2])
+        pksig=np.append(pksig,popt[3])
+        # print popt
+        workrow[negidx:posidx]=workmedian
+
+    # remove the initial values and sort. 
+    pkloc=pkloc[1:]
+    pksig=pksig[1:]
+    idxsort = np.argsort(pkloc)
+    pkloc=pkloc[idxsort]
+    pksig=pksig[idxsort]
+    # print pkloc
+    return pkloc,pksig
+        
+
+
+def extract_row(image, rowno, thick):
+    "Cuts out a row and takes some medians."
+    row=image[rowno-thick:rowno+thick,:]
+    row=np.median(row,axis=0)
+    mrow=np.median(row)
+    row = row-mrow
+    return row
+
+
+
+fnames=sys.argv[1:]
+
+foci=-1000
+sigmas=-1000
+
+# loop over images
+#for nimage in np.arange(firstimage,firstimage+nimages-1,1):
+for fname in fnames:
+
+    print fname
+    # load the image
+    hdulist=fits.open(fname)
+
+    # extract some keywords
+    im = hdulist[0]
+    data=im.data
+    focus=im.header['BFOCMM']
+    mask=im.header['BNASNAM']
+    bin=im.header['BINNING']
+    bin=bin[2]
+    print fname,focus
+
+    divisor=1
+    if bin == "2":
+        divisor=2
+
+    # use different regions based on N+S cs Full.
+    if mask == "Open":
+        ylow=1100/divisor
+        yhigh=4100/divisor
+        ystep=500/divisor
+        # ylow=1500/divisor
+        # yhigh=2700/divisor
+        # ystep=200/divisor
+    else:
+        ylow=1500/divisor
+        yhigh=2700/divisor
+        ystep=200/divisor
+    
+    allsigs=-1000
+   
+
+    # loop over rows
+    for rownumber in (np.arange(ylow,yhigh,ystep)):
+        row=extract_row(data,rownumber,32/divisor)
+        pks,sigs=barpeaks(row, 120, 14/divisor)
+        allsigs=np.append(allsigs,sigs)
+   
+
+    sigs=allsigs[1:]
+    foci=np.append(foci,focus)
+    sigmas=np.append(sigmas,np.average(sigs))
+
+
+# get rid of the first element
+foci=foci[1:]
+sigmas=sigmas[1:]
+
+# sort by focus
+idxsort=np.argsort(foci)
+foci=foci[idxsort]
+sigmas=sigmas[idxsort]
+
+
+# x
+minidx=np.argmin(sigmas)
+min=np.amin(sigmas)
+
+delt=2
+negidx=math.floor(minidx+0.5)-delt
+posidx=math.floor(minidx+0.5)+delt+1.0
+
+if negidx<0:
+    negidx=0
+
+if posidx>sigmas.shape[0]-1:
+    posidx=sigmas.shape[0]-1
+
+subfoci=foci[negidx:posidx]
+subsigmas=sigmas[negidx:posidx]
+res=np.polyfit(subfoci,subsigmas,2)
+pfit=np.polyval(res,subfoci)
+print res
+minpos=-res[1]/(2*res[0])
+minval=np.polyval(res,minpos)
+print "Minimum computed value (pix rms): %5.2f" % minval
+print "Minimum computed position (focmm): %6.3f" % minpos
+label = "Best focus (mm): "+str(minpos)
+plt.plot(foci,sigmas,"kx",markersize=15,label=label)
+plt.xlabel('Stage focus (mm)')
+plt.ylabel('Bar widths rms (pix = 15 um)')
+pltrange=np.arange(np.amin(subfoci),np.amax(subfoci),0.005)
+pltfit=np.polyval(res,pltrange)
+plt.plot(pltrange,pltfit,"b",linewidth=3)
+#plt.plot(subfoci,pfit,"r",linewidth=3)
+plt.plot(minpos,minval,"rD",markersize=12)
+print "BESTFOC ",str(minpos)
+
+plt.draw()
+plt.pause(1) 
+print "***** IF THE FOCUS VALUE IS CORRECT, IT WILL BE SET AUTOMATICALLY *****"
+if minpos>-1.95 and minpos<-1.70:
+    subprocess.call(['focusb',str(minpos)])
+    print("The blue camera focus has been set automatically")
+else:
+    print("The focus value appears to be incorrect and will NOT be set")
+    print("The most likely cause is a problem with the keygrabber")
+raw_input("<Hit Enter To Close>")
+plt.close()
+
+    
+
+
+
+
+    

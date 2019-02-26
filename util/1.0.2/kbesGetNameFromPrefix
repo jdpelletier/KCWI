@@ -1,0 +1,22 @@
+#!/bin/csh -f
+
+if ($#argv < 1) then
+   echo "USAGE: $0 prefix"
+   exit -1
+endif
+
+if ($1 == "ca") then
+  echo "cassette"
+else if ($1 == "gt") then
+  echo "grating transfer"
+else if ($1 == "ft") then
+  echo "filter transfer"
+else if ($1 == "gp") then
+  echo "grating pusher"
+else if ($1 == "fp") then
+  echo "filter pusher"
+else if ($1 == "gr") then
+  echo "grating rotator"
+else
+  echo "unknown"
+endif

@@ -1,0 +1,90 @@
+#!/bin/csh
+# matmat
+# 161025
+#
+# Homes the KCAS axes, in order.
+# This script is safe to CTRL-C at any time, although that might not abort
+# a move in progress. The end result is that only unhomed axes finish
+# at specified positions. Already homed axes are not moved. 
+
+set service=kcas
+set computer=calgalil
+set scrname=`basename -- "$0"`
+set axes=(ifu calm calp calx caly calh call)
+set positions=( Small Sky Sky Dark Dark Flat B )
+
+set timeout=300
+set dfmt="+%y%m%d-%H%M%S"
+
+
+ping -t 1 -c 1 $computer >>& /dev/null
+if ( $status ) then 
+   echo "${scrname}: $computer is not responding." >>& /dev/stderr
+   exit 1
+endif
+
+if (! `kcwiCheckServer ${service}`) then
+   echo "${scrname}: KCAS service not running." >>& /dev/stderr
+   exit 1
+endif
+
+
+
+
+echo "${scrname}: Starting initialization at `date`"
+echo "${scrname}: Actuating shutters"
+@ ctr = 0
+set iters=2
+while ( $ctr < $iters ) 
+    kcas_shutter thar open
+    kcas_shutter thar close
+    kcas_shutter fear open
+    kcas_shutter fear close
+    @ ctr++
+end 
+
+@ ctr=1
+foreach axis ( $axes )
+	set axishomed=`show -t -s {$service} ${axis}homed`
+	set position=$positions[$ctr]
+	if ( ! $axishomed ) then
+	   echo
+	   echo "${scrname}: Homing $axis `date $dfmt`"	
+	   modify -s ${service} ${axis}home=1 >> /dev/null
+	   sleep 0.5 		
+	   gwaitfor -t 300 -s $service '$status ne "Moving"'
+	   if ($status) then
+	      echo "${scrname}: Axis $axis failed to home." >>& /dev/stderr
+	      exit 2
+	   endif
+	   set stat=`show -t -s $service status`
+	   if ( $stat == "Error" ) then
+	       echo "${scrname}: Error homing $axis." >>& /dev/stderr
+	       exit 2
+	   endif
+	   echo "${scrname}: Axis $axis homed `date $dfmt`"
+	    # now move the axis to the desired position
+	   modify -s ${service} ${axis}targn=$position >> /dev/null
+	   sleep 0.2
+	   modify -s ${service} ${axis}move=1 >> /dev/null
+	   sleep 0.5
+	   gwaitfor -t $timeout -s $service '$status ne "Moving"'
+	   if ( $status ) then
+	      echo '${scrname}: Failed $axis move to ${position}'
+	      exit 3 
+	   endif 
+	   set stat=`show -t -s $service status`
+	   if ( $stat == Error ) then 
+		echo '${scrname}: Error moving ${axis} to ${position}'
+		exit 3
+	   endif
+	   set newpos=`show -t -s ${service} ${axis}name`
+	   echo "${scrname}: Axis $axis at $newpos `date $dfmt`"
+       endif 
+
+@ ctr++
+end
+
+
+echo "${scrname}: Done initialization at `date $dfmt`"
+

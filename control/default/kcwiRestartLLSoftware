@@ -1,0 +1,8 @@
+#!/usr/bin/csh -f
+
+kcwiStopLLSoftware
+
+echo Sleeping 10 seconds
+sleepdots 10
+
+kcwiStartLLSoftware

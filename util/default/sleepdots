@@ -1,0 +1,55 @@
+#!/bin/csh -f
+#+
+# sleepdots -- print dots out while sleeping
+#
+# Purpose:
+#	Pause execution for specified time interval and print out
+#	a dot every second to indicate that we are still alive
+#
+# Usage:
+#	sleepdots <n>
+# 
+# Arguments:
+#	n = number of seconds to sleep
+# 
+# Output:
+#	Dots writen to stdout
+# 
+# Restrictions:
+#	None
+# 
+# Exit values:
+#	 0 = normal completion
+#	 1 = wrong number of arguments
+#
+# Example:
+#	1) Sleep for 60 seconds and print out dots every second:
+#		sleepdots 60
+#-
+# Modification history:
+#	2001-Mar-24	GDW	Original version
+#-----------------------------------------------------------------------
+
+set buf = $0
+set cmd = $buf:t
+set usage = "Usage: $cmd n"
+
+# verify args...
+if ( $#argv != 1 ) then
+  echo "$usage"
+  exit 1
+endif
+
+# parse args...
+if ( $#argv >= 1 ) then
+    @ n = $1
+    shift
+endif
+
+@ i = 0
+while ( $i < $n )
+    @ i++
+    printf "."
+    sleep 1
+end
+printf "\n"

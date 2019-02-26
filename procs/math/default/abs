@@ -1,0 +1,51 @@
+#!/usr/bin/csh -f
+#+
+#KCWI library of scripts
+#
+#NAME
+#       abs -- return the absolute value
+#
+#SYNOPSIS
+#       abs x
+#
+# DESCRIPTION
+#	Compute the absolute value of an expression
+#    Output:
+#	Prints the absolute value of x on the terminal
+# 
+# Arguments:
+# 	x = value or expression to be evaluated
+# 
+#OPTIONS
+#
+# EXAMPLES:
+#	1) Compute absolute value of a simple value:
+#		abs -1.2345	# returns "1.2345"
+#	2) Compute absolute value of an expression using Cshell variables:
+#		set a = -1.2345
+#		set b = 10
+#		abs $a + $b	# returns "8.7655"
+#		abs "$a * $b"	# returns "12.345"#
+# #ENVIRONMENT VARIABLES
+#     list of environment variables used
+#
+#FILES
+#     list of files used
+#
+#SERVERS & KEYWORDS
+#     
+#
+#SCRIPTS CALLED
+#
+#
+#EXIT STATUS:
+#        0 = normal completion; all values are floats
+#        1 = non-floats detected
+#
+#-
+# Modification history:
+#	2000-Jul-04	GDW	Original version for DEIMOS
+#	2012-Mar-12	MK	Modified for use with MOSFIRE
+#-----------------------------------------------------------------------
+
+calc "abs($*)"

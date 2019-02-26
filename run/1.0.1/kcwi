@@ -1,0 +1,859 @@
+#!/bin/tcsh -f
+# Use of tcsh necessary to assure use of shell built-in which below - MB
+#+
+# KCWI library of scripts
+#
+# NAME
+#     kcwi - base start/stop/restart script for servers, gui, etc.
+#
+# SYNOPSIS
+#     kcwi function process [-C configfile] [-D displayname] [-H runhost]
+#          [-U username] [-L "text"]
+#
+# DESCRIPTION
+#     this main purpose of this script is to parse and check the optional
+#     command line arguments - it doesn't actually start or stop anything,
+#     but calls other scripts for that.
+#
+#     the sequence of scripts called is:
+#     1. kcwi {function} {process}
+#          ->there is one top level script for all processes (this one!)
+#     2. {process}.csh {function}
+#          ->there is a unique script for each process, defining specific
+#            options for that process
+#     3. ONE of: kcwi_servers.csh, kcwi_guis.csh, kcwi_idl.csh
+#          ->there are three general scripts, one each for servers, guis, and
+#            idl tools.  these are the scripts that actually do the starting
+#            or stopping.
+#
+# OPTIONS
+#     function
+#
+#     process
+#
+#     -C configfile
+#
+#     -D displayname
+#
+#     -H runhost
+#
+#     -U username
+#
+#     -L "text for first line of logfile"
+#
+#     -T terminal script was started from
+#
+#
+# EXAMPLES
+#     kcwi start kbds -C special_kbds_cfg.xml -D myhost:0.0 -H myhost
+#       -U matthew
+#          This would start the process "kbds" on matthew@myhost, display it on
+#          myhost:0.0, and use the config file special_kbds_cfg.xml.
+#
+# ENVIRONMENT VARIABLES
+#     USER, HOST, SSH_TTY, KCWI_DEF_LOGLVL
+#     KBDS_LOGLVL, KBVS_LOGLVL, KBGS_LOGLVL, 
+#     KP1S_LOGLVL, KP2S_LOGLVL, KP3S_LOGLVL,
+#     KT1S_LOGLVL, KT2S_LOGLVL, KBES_LOGLVL, 
+#     KCWI_LOGLVL
+#
+# FILES
+#     none
+#
+# SERVERS & KEYWORDS
+#     none
+#
+# SCRIPTS CALLED
+#     list of the scripts called by this script, for example:
+#
+#     help, ping, id, procstatus, which, ssh
+#     NOTE: this script does not use syncheck
+#
+# EXIT STATUS
+#     0 - normal exit, no error
+#     1 - script aborted by an interrupt
+#     2 - syncheck error
+#     3 - error parsing command line input
+#     other errors...
+#
+# SEE ALSO
+#     ???
+#-
+#
+# Modification History:
+# 20131018 - JDN: New version created for kcwi, adapted from earlier
+# 		  version by CAJ for MOSFIRE.
+# 20101015 - CAJ: Added support for writing to the terminal which launches
+#		  the script. This allows for an interactive question
+#		  for the mosfire global server.
+# 20100925 - CAJ: Modified so that explicitly starting a server with
+#                 a debug command will override the environment variable.
+# 20100923 - CAJ: Added a check for server environment variables for
+#                 debugging. This will override default variable
+#                 and a standard "start" command.
+# 20100922 - CAJ: Added a check for environment variable for debugging.
+#                 This will override a standard "start" command.
+# 20100907 - CAJ: Added "all" and "servers" to targets. More debugging
+#                 for changes to MOSFIRE
+# 20060608 - JLW: New version created for mosfire, adapted from earlier 
+#                version by MB for OSIRIS.
+# 20050615 - MB: New version created, adapted from earlier versions
+#                by Weiss and NIRC2.
+# 20051208 - MB: Uses different ping commands for Solaris vs. Linux
+# 20171204 - LR/ECC: Allow to run as user kcwibld@kcwibuild (HQ)
+# -------------------------------------------------------------------
+
+# Boiler plate for "-h" support for command autohelp.
+
+if ("$1" == "-h") then
+    help $0 | more
+    exit $status
+endif
+
+# Boilerplate for syncheck.
+# Note that the boiler plate should be transparent for all usages,
+# but to make correct use of syncheck you will need to specify the
+# correct pattern.
+
+# Check that two required arguments (function & process) are present
+if ( $#argv < 2 ) then
+    help $0 | more
+    exit 3
+endif
+
+# Check that the user is kcwirun
+
+#if ( $HOST != "kcwirun" ) then
+#    echo "Only the user kcwirun can start/stop daemons"
+#    exit $status
+#endif
+
+
+# More error checking for the arguments is performed below
+
+# End of help/syncheck boiler plate.
+
+# Set this variable for testing mode...
+#set test
+
+# Set up to trap interrupts (Ctrl-C, etc.)
+onintr abort
+
+# Set default variable values
+set fcmd = $0
+set cmd = ${fcmd:t}
+set configfile = ""
+set display = ""
+set runuser = $USER
+set runhost = $HOST
+set logtext = ""
+set terminal = "/dev/$tty"
+set force = 0
+set simulate = 0
+
+# Set canonical values
+#if ( $HOST == 'kcwidev' || $HOST == 'kcwidev2' ) then
+#    # Caltech configuration
+#    set kcwiserver = $HOST
+#    set kcwitarg = "kcwitarg"
+#    set kcwiuser = "kcwidev"
+#else if ( $HOST == 'kcwitarg') then
+#    # Caltech configuration
+#    set kcwiserver = "kcwitarg"
+#    set kcwitarg = $HOST
+#    set kcwiuser = "kcwidev"
+#else if ( $HOST == 'kcwitarg2') then
+#    # Caltech configuration
+#    set kcwiserver = "kcwitarg2"
+#    set kcwitarg = $HOST
+#    set kcwiuser = "kcwidev"
+#  CALTECH CONFIGURATION HAS BEEN REMOVED AS OF January 15, 2017, by Luca Rizzi
+
+if ( $HOST == "kcwiserver" || $HOST == "kcwitarg" ) then
+    # WMKO configuration
+    set kcwiserver = "kcwiserver"
+    set kcwitarg = "kcwitarg"
+    set kcwiuser = "kcwirun"
+endif
+
+if ( $HOST == "kcwibuild" ) then
+    # THIS IS THE BUILD VERSION OF THE SOFTWARE
+    set kcwiserver = "kcwibuild"
+    set kcwitarg = "kcwibuild"
+    set kcwiuser = "kcwibld"
+endif
+
+
+
+# Get the required arguments and shift to the optional arguments
+set function = $1
+shift
+set process = $1
+shift
+
+# Check that a valid function was specifed
+switch ($function)
+    case start:
+    case stop:
+    case restart:
+    case status:
+    case killrpc:
+    case debug:
+    case debug0:
+    case debug1:
+    case debug2:
+    case debug3:
+    case debug4:
+    case debug5:
+	# Do nothing - these are valid functions.
+	breaksw
+    default:
+	echo "${cmd}: Invalid function <${function}> specified - script"\
+	    "aborted."
+	exit 3
+	breaksw
+endsw
+
+# Check if the server debug level has been set by the environment variable
+# If so, change the function to debug instead of start. Only do this if
+# the command to start the server is NOT an explicit debug level.
+
+if ($function == "debug") then
+    set function = "debug0"
+endif
+
+if ($function !~ "stop" && \
+    $function !~ "restart" && \
+    $function !~ "status" && \
+    $function !~ "killrpc" && \
+    $function !~ "debug0" && \
+    $function !~ "debug1" && \
+    $function !~ "debug2" && \
+    $function !~ "debug3" && \
+    $function !~ "debug4" && \
+    $function !~ "debug5" ) then 
+switch ($process)
+    case kbds:
+	if ($?KBDS_LOGLVL) then
+	    set function = debug$KBDS_LOGLVL
+	endif
+    breaksw
+    case kros:
+	if ($?KROS_LOGLVL) then
+	    set function = debug$KROS_LOGLVL
+	endif
+    breaksw
+    case kfcs:
+	if ($?KFCS_LOGLVL) then
+	    set function = debug$KFCS_LOGLVL
+	endif
+    breaksw
+    case kbms:
+	if ($?KBMS_LOGLVL) then
+	    set function = debug$KBMS_LOGLVL
+	endif
+    breaksw
+    case kcas:
+	if ($?KCAS_LOGLVL) then
+	    set function = debug$KCAS_LOGLVL
+	endif
+    breaksw
+    case kbes:
+	if ($?KBES_LOGLVL) then
+	    set function = debug$KBES_LOGLVL
+	endif
+    breaksw
+    case kbvs:
+	if ($?KBVS_LOGLVL) then
+	    set function = debug$KBVS_LOGLVL
+	endif
+    breaksw
+    case kbgs:
+	if ($?KBGS_LOGLVL) then
+	    set function = debug$KBGS_LOGLVL
+	endif
+    breaksw
+    case kp1s:
+	if ($?KP1S_LOGLVL) then
+	    set function = debug$KP1S_LOGLVL
+	endif
+    breaksw
+    case kp2s:
+	if ($?KP2S_LOGLVL) then
+	    set function = debug$KP2S_LOGLVL
+	endif
+    breaksw
+    case kp3s:
+	if ($?KP3S_LOGLVL) then
+	    set function = debug$KP3S_LOGLVL
+	endif
+    breaksw
+    case kt1s:
+	if ($?KT1S_LOGLVL) then
+	    set function = debug$KT1S_LOGLVL
+	endif
+    breaksw
+    case kt2s:
+	if ($?KT2S_LOGLVL) then
+	    set function = debug$KT2S_LOGLVL
+	endif
+    breaksw
+    case kcwi:
+	if ($?KCWI_LOGLVL) then
+	    set function = debug$KCWI_LOGLVL
+	endif
+    breaksw
+endsw
+endif
+
+# Check if the default debug level has been set by the environment variable
+# If so, change the function to debug instead of start
+
+if ($?KCWI_DEF_LOGLVL && \
+    $function !~ "stop" && \
+    $function !~ "restart" && \
+    $function !~ "status" && \
+    $function !~ "killrpc" && \
+    $function !~ "debug0" && \
+    $function !~ "debug1" && \
+    $function !~ "debug2" && \
+    $function !~ "debug3" && \
+    $function !~ "debug4" && \
+    $function !~ "debug5" ) then
+  set env_log_level=${KCWI_DEF_LOGLVL}
+  switch ($env_log_level)
+    case 0:
+	set function = debug0
+    breaksw
+    case 1:
+	set function = debug1
+    breaksw
+    case 2:
+	set function = debug2
+    breaksw
+    case 3:
+	set function = debug3
+    breaksw
+    case 4:
+	set function = debug4
+    breaksw
+    case 5:
+	set function = debug5
+    breaksw
+  endsw
+endif
+
+# Determine whether we are on Solaris (SunOS) or Linux
+set systype = `uname -s`
+
+# Set the default runhost and username for each process
+# these values will be overridden by any specified on the command line
+# the pkgtype is needed to put the log files in the right place
+switch ($process)
+    # Global server
+    case kcwi:
+    # All the hardware controlled thru the terminal server or ethernet
+    # (no special hardware needs to be on the host where they run)
+    case kbvs:
+    case kbgs:
+    case kros:
+    case kfcs:
+    case kbes:
+    case kbms:
+    case kcas:
+    case kt1s:
+    case kt2s:
+    case kp1s:
+    case kp2s:
+    case kp3s:
+	set runhost = $kcwiserver
+	set runuser = $kcwiuser
+	set pkgtype = "server"
+	breaksw
+
+    # Detector Server
+    # (must run on kaimana or whatever the detector target is)
+    case kbds:
+	set runhost = $kcwitarg
+	set runuser = $kcwiuser
+	set pkgtype = "server"
+	breaksw
+
+    # Control GUIs
+    # these should normally run as current user@napili
+    case kdesktop:
+	set runhost = $kcwiserver
+	set runuser = $USER
+	set pkgtype = "gui"
+	breaksw
+
+    case kdesktop_eng:
+	set runhost = $kcwiserver
+	set runuser = $USER
+	set pkgtype = "gui"
+	breaksw
+
+    case kdesktop_oa:
+	set runhost = $kcwiserver
+	set runuser = $USER
+	set pkgtype = "gui"
+	breaksw
+
+    case kdesktop_hk:
+	set runhost = $kcwiserver
+	set runuser = $USER
+	set pkgtype = "gui"
+	breaksw
+
+    case guilauncher:
+	set runhost = $kcwiserver
+	set runuser = $USER
+	set pkgtype = "gui"
+	breaksw
+
+   #case kcwid:
+	#set runhost = $kcwiserver
+	#set runuser = $kcwiuser
+	#set pkgtype = "script"
+	#breaksw
+
+    # python script to configure pupil rotator
+    # when rotator/telescope slews
+    case watchslew:
+	set runhost = $kcwiserver
+	set runuser = $kcwiuser
+	set pkgtype = "script"
+	breaksw
+
+    # program to monitor dcs and update pupil rotator angle
+    case watchrot:
+	set runhost = $kcwiserver
+	set runuser = $kcwiuser
+	set pkgtype = "script"
+	breaksw
+
+    case watchdar:
+	set runhost = $kcwiserver
+	set runuser = $USER
+	set pkgtype = "script"
+	breaksw
+
+    # program to grab keyword history
+    case keygrabber:
+	set runhost = $kcwiserver
+	set runuser = $kcwiuser
+	set pkgtype = "script"
+	breaksw
+
+    # program to grab keyword history
+    case kcwiConfManager:
+	set runhost = $kcwiserver
+	set runuser = $kcwiuser
+	set pkgtype = "script"
+	breaksw
+    #exposure GUI
+    case kcwiExposureGui:
+	set runhost = $kcwiserver
+	set runuser = $USER
+	set pkgtype = "script"
+	breaksw
+    case kcwiCalibrationGui:
+	set runhost = $kcwiserver
+	set runuser = $USER
+	set pkgtype = "script"
+	breaksw
+    case kcwiOffsetGui:
+	set runhost = $kcwiserver
+	set runuser = $USER
+	set pkgtype = "script"
+	breaksw
+    case kcwiStatusGui:
+	set runhost = $kcwiserver
+	set runuser = $USER
+	set pkgtype = "script"
+	breaksw
+
+    # sounds
+    case soundboard:
+	set runhost = $kcwiserver
+	set runuser = $USER
+	set pkgtype = "script"
+	breaksw
+
+    case eventsounds:
+	set runhost = $kcwiserver
+	set runuser = $USER
+	set pkgtype = "script"
+	breaksw
+
+
+    # program to display blue side images
+    case kcwidisplayb:
+	set runhost = $kcwiserver
+	set runuser = $USER
+	set pkgtype = "script"
+	breaksw
+
+    # program to display focal plane camera images
+    case kfcdisplay:
+	set runhost = $kcwiserver
+	set runuser = $USER
+	set pkgtype = "script"
+	breaksw
+
+    # program to display focal plane camera images
+    case magiqdisplay:
+	set runhost = $kcwiserver
+	set runuser = $USER
+	set pkgtype = "script"
+	breaksw
+
+    # This is a special case which will call all scripts required
+    # to start the instrument. CAJ: Removed mmdfs from list 11/10/11.
+    case all:
+        set serverList = ( kp1s kp2s kp3s kt1s kt2s kbvs kbgs kbds kbes kbms kros kcwi \
+			   kdesktop )
+        set pkgtype = "server"
+        breaksw
+
+    # This is a special case which will call all scripts required
+    # to start just the servers (no guis). CAJ: Removed mmdfs from list 11/10/11.
+    case servers:
+        #set serverList = ( kp1s kp2s kp3s kt1s kt2s kbvs kbgs kbds kbes kcwi )
+        set pkgtype = "server"
+        breaksw
+
+    # This is a special case which will call all scripts required
+    # to start just the local servers (no guis). CAJ: Removed mmdfs from list 11/10/11.
+    case localservers:
+        #set serverList = ( kp1s kp2s kp3s kt1s kt2s kbvs kbgs kbds kbes kcwi )
+        set pkgtype = "server"
+        breaksw
+
+    # This is a special case which will call all scripts required
+    # to start just the guis (no servers)
+    case guis:
+        #set serverList = ( kdesktop )
+        set pkgtype = "gui"
+        breaksw
+
+    # For anything else run as current user@host
+    default:
+	set runhost = $HOST
+	set runuser = $USER
+	set pkgtype = "NA"
+	breaksw
+
+endsw
+
+# Check for optional flags
+while ($#argv != 0)
+    switch ($1)
+	case -C:
+	    set configfile = "$2"
+	    shift
+	    breaksw
+
+	case -D:
+	    set display = $2
+	    shift
+	    breaksw
+
+	case -H:
+	    # if a hostname was specified, override the defaults above
+	    set runhost = $2
+	    shift
+
+	    # make sure the host exists and is up, too
+	    switch ($systype)
+		case SunOS:
+		    set junk = `ping ${runhost}`
+		    set error = $status
+		    breaksw
+		case Linux:
+		    set junk = `ping -c 1 ${runhost}`
+		    set error = $status
+		    breaksw
+		default:
+		    set error = 0
+		    breaksw
+	    endsw
+
+	    if ($error != 0) then
+		echo "${cmd}: Unable to contact ${runhost} - script aborted."
+		# set the error code for an error with command line input
+		exit 3
+	    endif
+	    unset error
+	    breaksw
+
+	case -U:
+	    # if a username was specified, override the defaults above
+	    set runuser = $2
+	    shift
+
+	    # check if the user account exists (on the current host anyways)
+	    set junk = `id ${runuser}`
+	    set error = $status
+	    if ($error != 0) then
+		echo "${cmd}: Invalid username specified <${runuser}> -"\
+		    "script aborted."
+		# set the error code for an error with command line input
+		exit 3
+	    endif
+	    unset error
+	    breaksw
+
+	case -L:
+	    set logtext = "$2"
+	    shift
+	    breaksw
+
+	case -F:
+	    set force = 1
+	    breaksw
+
+	case -S:
+	    set simulate = 1
+	    breaksw
+
+	case -T:
+	    shift
+	    breaksw
+
+	default:
+	    echo "${cmd}: Unknown flag <${1}> specified - script aborted."
+	    echo "${cmd}: Usage: $0 function process [-C file] [-D display]"\
+		'[-H host] [-U user] [-L "text"] [-F] [-S]'
+	    # set error code for error with command line input
+	    exit 3
+	    breaksw
+    endsw
+    shift
+end
+
+### BODY OF SCRIPT
+if ($?test) then
+    echo ""
+    echo "Current Script Variables:"
+    echo function =   $function
+    echo process =    $process
+    echo display =    $display
+    echo configfile = $configfile
+    echo runuser =    $runuser
+    echo runhost =    $runhost
+    echo logtext =    $logtext
+    echo terminal =   $terminal
+    echo force =      $force
+    exit
+endif
+
+if ("${function}" == "status") then
+    # Just return the status and exit
+    procstatus $process -H $runhost -U $runuser
+    goto done
+endif
+
+# Check if the command is to restart, in which case run a wrapper script
+# for starting and stopping the desired process(es).
+
+if ($function == "restart") then
+
+    # Build up the command to call
+    set newcmd = "${process}"
+
+    if ("${configfile}" != "") then
+	set newcmd = "${newcmd} -C ${configfile}"
+    endif
+
+    if ("${display}" != "") then
+	set newcmd = "${newcmd} -D ${display}"
+    endif
+
+    if ("${runuser}" != "") then
+	set newcmd = "${newcmd} -U ${runuser}"
+    endif
+
+    if (${force} != 0) then
+	set newcmd = "${newcmd} -F"
+    endif
+
+    if (${simulate} != 0) then
+	set newcmd = "${newcmd} -S"
+    endif
+
+    # Add the terminal to the end of the command
+    set newcmd = "${newcmd} -T ${terminal}"
+
+     kcwi_restart.csh $newcmd
+    exit
+endif
+
+# Check if we are on the right host as the right user
+# if we are, call the next script, otherwise ssh there first
+if ( ("$runhost" == "$HOST") && ("$runuser" == "$USER") ) then
+    # We are the correct user on the correct host
+
+    # Make sure the command to be called exists
+    # If /usr/bin/which is called instead of shell built-in which, the
+    # following line will return with status=0 no matter what... - MB
+    set junk = `which ${process}.csh`
+    set error = $status
+    if ($error != 0) then
+	kcwiScriptMsg -T "${cmd}: Cannot find a script for the"\
+	    "${process} process."
+	exit 4
+    endif
+    unset error
+
+    # Start a log file if we are starting something and have correct pkgtype
+    if ((("${function}" == "start") || \
+	 ("${function}" == "debug") || \
+	 ("${function}" == "debug0") || \
+	 ("${function}" == "debug1") || \
+	 ("${function}" == "debug2") || \
+	 ("${function}" == "debug3") || \
+	 ("${function}" == "debug4") || \
+	 ("${function}" == "debug5"))  && ("${pkgtype}" != "NA")) then
+	# Construct log file directory and name
+	set logdir = ${KCWI_LOGDIR}
+	if (logdir == "") then
+	    set logdir = "${RELDIR}/var/log/${pkgtype}/${process}/"
+	else
+	    set logdir = "${KCWI_LOGDIR}/${pkgtype}/${process}/"
+	endif
+	set tag = `date '+%y%m%d_%H%M'`
+
+	set logfile = "${logdir}${tag}_${process}.log"
+
+	# Make sure the logfile exists
+	touch $logfile
+
+	# First write any passed in log file text
+	if ("${logtext}" != "") then 
+	    echo "${logtext}" >> $logfile
+	    echo "" >> $logfile
+	endif
+
+	# Make an entry in the logfile
+	echo -n `date` >> $logfile
+	echo ": ${process} start attempted by ${USER}@${HOST}"  >> $logfile
+	# Alert the user that output will be logged
+	echo "STDOUT and STDERR logged to:"
+        echo "  ${logfile}"
+    endif
+
+    # Build up the command to call
+    set newcmd = "${process}.csh ${function}"
+
+    if ("${configfile}" != "") then
+	set newcmd = "${newcmd} -C ${configfile}"
+    endif
+
+    if ("${display}" != "") then
+	set newcmd = "${newcmd} -D ${display}"
+    endif
+
+    if ("${process}" == "all" || "${process}" == "servers") then
+	set newcmd = "${newcmd} -U ${runuser}"
+    endif
+
+    if (${force} != 0) then
+	set newcmd = "${newcmd} -F"
+    endif
+
+    if (${simulate} != 0) then
+	set newcmd = "${newcmd} -S"
+    endif
+
+    # Add the terminal to the end of the command
+    set newcmd = "${newcmd} -T ${terminal}"
+
+    # Call the command, but first check if we should use a log file, and, 
+    # check this script was called from a command line or another script
+    # If from a command line, we want to start it with an &
+    #    (if SSH_TTY is set, then it was called from a command line)
+    # If from another script, we leave it up to it to background the task
+
+
+    if ((("${function}" == "start") || \
+	 ("${function}" == "debug") || \
+	 ("${function}" == "debug0") || \
+	 ("${function}" == "debug1") || \
+	 ("${function}" == "debug2") || \
+	 ("${function}" == "debug3") || \
+	 ("${function}" == "debug4") || \
+	 ("${function}" == "debug5"))  && ("${pkgtype}" != "NA")) then
+
+	if ($?SSH_TTY) then
+	    $newcmd >>& $logfile
+        else if ($process == "kdesktop") then
+            $newcmd >>& $logfile &
+        else if ($process == "autodisplay") then
+            $newcmd >>& $logfile &
+        else if ($process == "guilauncher") then
+            $newcmd >>& $logfile &
+        else if ($process == "watchslew") then
+            $newcmd >>& $logfile &
+        else if ($process == "watchrot") then
+            $newcmd >>& $logfile &
+	else
+	    $newcmd >>& $logfile
+	endif
+#    else if ("${function}" == "killrpc") then
+#	kcwiKillRPCEntry $process
+#        exit
+    else
+	$newcmd
+# Don't think this matters since things always get backgrounded farther
+# down the road.  In particular, QL2 doesn't run from the IDL Start tool
+# if an ampersand is used.
+#	if ($?SSH_TTY) then
+#	    $newcmd &
+#	else
+#	    $newcmd
+#	endif
+    endif
+
+else
+    # Either host or user doesn't match, so ssh there
+
+    # String to pass for log file to be created
+    set logtext = "'SSH from ${USER}@${HOST} to ${runuser}@${runhost}'"
+	# single quotes inside double quotes needed to pass entire string
+	# as one argument when doing the ssh - MB
+
+    # Build up the command to call after sshing
+    set newcmd = "kcwi ${function} ${process} -U ${runuser} -H ${runhost}"
+
+    if ("${configfile}" != "") then
+	set newcmd = "${newcmd} -C ${configfile}"
+    endif
+
+    if ("${display}" != "") then
+	set newcmd = "${newcmd} -D ${display}"
+    endif
+
+    if (("${logtext}" != "") && ("${pkgtype}" != "NA")) then
+	set newcmd = "${newcmd} -L ${logtext}"
+    endif
+
+#echo $newcmd
+
+    # Actually do the ssh
+    ssh -f -Y -l $runuser $runhost "${newcmd}"
+endif
+
+goto done
+
+abort:
+# Block of code to handle interrupts.
+exit 1
+
+done:
+
+setLogLinks
+
+#cp $logfile $logdir/current.log
+
+exit

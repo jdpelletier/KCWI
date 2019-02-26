@@ -1,0 +1,1 @@
+java -Djava.security.policy=$RELDIR/data/kcwi/kcwi.java.policy -Djava.library.path=$RELDIR/lib -classpath $RELDIR/classes/irlabUtil.jar:$RELDIR/classes/jdom.jar:$RELDIR/classes/kjava.jar:$RELDIR/classes/log4j.jar edu.ucla.astro.irlab.util.gui.builder.GUILauncher $RELDIR/data/kcwi/kbesgui_layout.xml $RELDIR/data/kcwi/kbesProperties.xml server=kbes

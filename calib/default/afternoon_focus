@@ -1,0 +1,14 @@
+#!/bin/csh
+
+echo "-------- Turning on focal plane camera"
+fpcamPower on
+echo "-------- Inserting focal plane camera"
+slicer fpcam
+echo "-------- Focusing calibration unit"
+kcas_focus
+echo "-------- Calibrating offsets"
+kcas_find_offsets
+echo "-------- Focusing KCWI spectrograph"
+kcwi-focus
+
+echo "-------- PLEASE set the focus to the recommended value"

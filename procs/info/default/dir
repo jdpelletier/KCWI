@@ -1,0 +1,63 @@
+#!/bin/csh -f
+#+
+# KCWI library of scripts
+#
+# NAME
+#	dir -- list FITS images in the current output directory
+#
+# SYNOPSIS
+#	dir [flags]
+#
+# DESCRIPTION
+#	Print a list of all FITS files in the data directory.
+#	A list of files is printed to the standard output.
+#
+# ARGUMENTS
+#	flags = any legal flags for the "ls" command
+#
+# OPTIONS
+#
+# EXAMPLES
+#	1) obtain a short listing of files in the output directory:
+#		dir
+#	2) obtain a long listing:
+#		dir -l
+#
+# ENVIRONMENT VARIABLES
+#
+# FILES
+#
+# SERVERS & KEYWORDS
+#
+# SCRIPTS CALLED
+#
+# EXIT STATUS
+#	0 = normal completion
+#	1 = wrong number of arguments
+#	2 = output directory not found
+# SEE ALSO
+#-
+#
+# Modification History:
+#	2000-Jul-04	GDW	Original version
+#       2002-Jun-06     GDW     Adapted for DEIMOS
+#       2011-Feb-29   	MK	Modified for use with MOSFIRE
+#	2014-Sep-03	JDN	Modified for use with KCWI blue
+#-----------------------------------------------------------------------
+
+# get the output directory...
+set dir = `show -s kcwi -terse bdsoutdir`
+
+if ( $status != 0 ) then
+  echo "Error reading outdir"
+  exit 2
+endif
+
+if ( ! -e $dir ) then
+  echo "Output directory $dir not found"
+  exit 2
+endif
+
+# execute commands in subshell to prevent changing current directory...
+echo "FITS files in output directory ${dir}:"
+( cd $dir ; \ls $* *.fits )

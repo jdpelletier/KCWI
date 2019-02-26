@@ -1,0 +1,312 @@
+#!/bin/tcsh
+#
+# 160429 
+# 
+# Matuszewski -- matmat@caltech.edu
+#
+# Take a single calibration exposure
+#
+# Options:
+# -t, --time : exposure time (defaults to 1s)
+# -n, --number : number of exposures to take (defaults to 1)
+# -l, --lamp : which lamp to use
+# -o, --object : the calibration object to image (defaults to 0; 0 to 13)
+# exit status is 0 on success, something else otherwise
+#
+# 
+
+set temp=(`getopt -s tcsh -o t:n:o:l: --long time:,number:,object:,lamp: -- $argv:q`)
+if ( $? != 0 ) then
+    echo "Invalid arguments..." > /dev/stderr
+    echo $temp
+    exit -1
+endif 
+
+eval set argv=\($temp:q\)
+
+# initial/default values, overwridden by switches
+set time=1.0
+set number=1
+set lamp=3
+set objectid=0
+
+while (1) 
+    switch($1:q)
+    case -t:
+    case --time:
+	set time=$2:q; shift; shift
+	echo "Time = $time"
+	breaksw
+    case -n:
+    case --number:
+	set number=$2:q; shift; shift
+	echo "Number = $number"
+	breaksw
+    breaksw
+    case -l:
+    case --lamp:
+	set lamp=$2:q; shift;shift
+	set lamp=`echo $lamp | tr "[a-z]" "[A-Z]"`
+	echo "Lamp = $lamp"
+    breaksw
+    case -o:
+    case --object:
+	set object=$2:q; shift; shift
+	set object=`echo $object | tr "[a-z]" "[A-Z]"`
+	echo "Object = $object"
+    breaksw 
+    case --:
+	shift
+	break;
+    default:
+    exit 1
+endsw
+end
+
+### Now check validity of the arguments.
+
+if ( ! `kcas_isinteger $number` ) then
+    echo "Error: Number of exposures '$number' is not an integer." > /dev/stderr
+    exit -1
+endif
+
+if ( $number < 0 ) then
+    echo "Error: Number of exposuers should be positive ($number)." > /dev/stderr
+    exit -1
+endif
+
+# make lamp uppercase
+set lamp=`echo $lamp | tr "[a-z]" "[A-Z]"`
+
+# identify which lamp is being used. 
+switch ( $lamp )
+    case 0:
+    case T:
+    case TH:
+    case THAR:
+	echo "Thorium argon!"
+	set lamp="thar"
+    breaksw
+    case 1:
+    case F:
+    case FE:
+    case FEAR:
+	echo "Iron argon!"
+	set lamp="fear"
+    breaksw
+    case 3:
+    case C:
+    case CONT:
+    case CONTINUUM:
+	echo "Continuum!"
+	set lamp="cont"
+    breaksw
+    default:
+	echo "Error: Invalid lamp." > /dev/stderr
+	exit -2
+    breaksw
+endsw
+
+# check if exposure time is a valid number
+if (! `kcas_isfloat $time` ) then
+    echo "Error: Invalid exposure time." > /dev/stderr
+    exit -1
+endif
+
+if ( $time < 0 ) then
+    echo "Error: Invalid exposure time." > /dev/stderr
+    exit -1
+endif 
+
+# making an executive decision that the object is a number
+#if ( ! `kcas_isinteger $object` ) then
+#    echo "Error: Object needs to be an integer." > /dev/stderr
+#   exit -1
+#endif 
+# make sure it is a valid KCWI object. 
+# this could be a switch/case configuration if we 
+# allowed full names
+set obj=` echo "$object" | tr "[A-Z]" "[a-z]"`
+echo "switching on object $obj"
+    switch ( $obj )
+	case dark:
+	case 0:
+	    set object=0
+	breaksw
+	case pin300:
+	case 1:
+	    set object=1
+	breaksw
+	case medbarsa:
+	case medbars:
+	case 2:
+	    set object=2
+	breaksw
+	case medbarsb:
+	case 3:
+	    set object=3
+	breaksw
+	case finbars:
+	case finebars:
+	case 4:
+	    set object=4
+	breaksw
+	case diaglin:
+	case 5:
+	    set object=5
+	breaksw
+	case flata:
+	case flat:
+	case 6:
+	    set object=6
+	breaksw
+	case flatb:
+	case 7:
+	    set object=7
+	breaksw
+	case lrgbarsa:
+	case lrgbars:
+	case bigbars:
+	case 8:
+	    set object=8
+	breaksw
+	case lrgbarsb:
+	case lrgbars:
+	case 9:
+	    set object=9
+	breaksw
+	case pin500:
+	case 10:
+	    set object=10
+	breaksw
+	case tpat:
+	case 11:
+	    set object=11
+	breaksw
+	case horlin:
+	case 12:
+	    set object=12
+	breaksw
+	case mira:
+	case 13:
+	    set object=13
+	breaksw
+	default:
+	    echo "Unknown position $object" >> /dev/stderr
+	    exit 4
+	breaksw
+    endsw
+
+
+if ( ( $object < 0 ) || ( $object > 13 ) ) then
+    echo "Error: Object '$object' is out of range." > /dev/stderr
+    exit -1
+endif
+
+# make sure the relevant servers are running
+set servers = ( kcas kbds )
+foreach server ( $servers )
+    if ( ! `kcwiCheckServer $server` ) then
+	echo "Error: $server not running." > /dev/stderr
+	exit -1
+    endif 
+end
+
+onintr intlabel
+
+# configure the appropriate lamp
+switch ( $lamp )
+    case thar:
+	kcas_lamp thar on
+	kcas_shutter thar open
+	kcas_shutter fear close
+	kcas_lamp cont off
+    breaksw
+    case fear:
+	kcas_lamp fear on
+	kcas_shutter fear open
+	kcas_shutter thar close
+	kcase_lamp cont off
+    breaksw
+    case cont:
+	kcas_shutter thar close
+	kcas_shutter fear close
+	kcas_lamp cont on
+    breaksw
+    default:
+	echo "Error: Unknown lamp. Should not get here." > /dev/stderr
+	exit -1
+    breaksw
+endsw
+
+# Move the mirror into the beam
+kcas_movelin calm 1
+if ( $status) then 
+    echo "Error: KCAS could not move mirror axis." > /dev/stderr
+    exit -1
+endif
+
+# Move the X-Y stage to requested position
+kcas_movelin calx $object
+if ( $status) then 
+    echo "Error: KCAS could not move calx axis." > /dev/stderr
+    exit -1
+endif
+
+kcas_movelin caly $object
+if ( $status ) then 
+    echo "Error: KCAS could not move caly axis." > /dev/stderr
+    exit -1
+endif
+
+
+# configure exposure time 
+set initial_exptime=`show -t -s kbds ttime`
+if ( $status ) then 
+    echo "Error: Could not get KBDS.TTIME" > /dev/stderr
+    exit -1
+endif
+modify -s kbds ttime=$time
+
+
+
+#take $number exposures
+@ ctr = 0
+### STANDARD SCRIPT
+### Uncomment for it to work.
+## goib $number
+
+echo "Taking $number exposures"
+set wtime=`echo " $time * $number " | bc -l `
+echo "Waiting $wtime seconds"
+sleep $wtime
+echo $
+
+#set wttime=`echo "$time*$number" | bc`
+#echo "Sleeping $wttime s.  ( = $time * $number)"
+#sleep $wttime
+
+# Recover the initial exptime
+modify -s kbds ttime=$initial_exptime
+
+kcas_shutter thar close
+kcas_shutter fear close
+
+echo "Done."
+
+exit 0
+
+
+intlabel:
+    echo "Warning: CTRL+C caught." > /dev/stderr
+    # close shutters/turn off continuum lamp
+    kcas_shutter thar close
+    kcas_shutter fear close
+    kcas_lamp cont off
+    # abort all motions
+    modify -s kcas abort=1
+    echo "Warning: You may need to adjust the axes." > /dev/stderr
+
+    # return to normal behaviour
+    onintr
+    exit 10

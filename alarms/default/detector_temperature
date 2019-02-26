@@ -1,0 +1,110 @@
+#! /kroot/rel/default/bin/kpython
+    
+import ktl
+import argparse
+
+from KeckAlarm.GenericMonitor import AlarmHandler
+ 
+description = "Alarm handler for KCWI blue detector temperature"
+parser = argparse.ArgumentParser(description=description)
+parser.add_argument('action',help='action to be performed (enable,disable,snooze,status)',\
+                    choices=['enable','disable','snooze','status'],nargs='?')
+parser.add_argument('minutes',help='minutes to snooze for',nargs='?',default=0)
+parser.add_argument('-debug',help='Forces verbose output on screen. Not recommended for cronjobs',action='store_true',required=False, default=False)
+
+
+# Instantiate the class: create the alarm with a name
+DetectorTemp = AlarmHandler('temperature')
+
+# the set temperature comes from a keyword, and at this point we already know 
+# that the service is operational
+DetectorTemp.whoFrom = 'kcwirun@keck.hawaii.edu'
+#DetectorTemp.whoWarning = 'matmat@caltech.edu; lrizzi@keck.hawaii.edu; neilljd@gmail.com; kcwi_warnings@keck.hawaii.edu'
+#DetectorTemp.whoInfo = 'matmat@caltech.edu; lrizzi@keck.hawaii.edu; neilljd@gmail.com; kcwi_info@keck.hawaii.edu'
+DetectorTemp.whoWarning = 'luca.kilohi@gmail.com'
+DetectorTemp.whoInfo = 'luca.kilohi@gmail.com'
+DetectorTemp.host = 'kcwiserver'
+DetectorTemp.user = 'kcwirun'
+
+# EMAILS 
+
+# server is not running
+DetectorTemp.serviceNotRunning['subject'] = "Warning: The KT1S service is not running"
+DetectorTemp.serviceNotRunning['body'] = \
+           """This is an info email that the KT1S server is not running.
+
+           1. Log into kcwiserver as user kcwi
+           2. Type the following command:
+               "ctx" to determine the state of the instrument servers
+           3. Run kcwi restart servers  to restart servers."""
+
+# alarm has been manually disabled, and more than 1 day has passed
+DetectorTemp.alarmsDisabled['subject'] = "Info: The KT1S alarms are currently disabled"
+DetectorTemp.alarmsDisabled['body'] = \
+            """This is just a friendly reminder that alarms for the KCWI detector 
+            temperatures have been disabled by user request.  This message
+            will be sent out daily until alarms are re-enabled.  Follow
+            these steps to re-enable temperature monitoring:
+
+            1. Log into kcwiserver as user "kcwi"
+            2. Type the following command:
+                detector_temperature enable"""
+
+# server is running, but the keyword is not available or has invalid value
+DetectorTemp.missingValue['subject'] = "Warning: no KCWI detector temperature is available"
+DetectorTemp.missingValue['body'] = \
+            """The KT1S service is not returning valid temperature readings.
+            
+            The monitor script will email alarms every 10 minutes until the 
+            situation is corrected or the alarms are disabled."""
+
+# real alarm: the value is out or range
+DetectorTemp.raiseAlarm['subject'] = "WARNING: KCWI Blue detector temperature is out of range"
+DetectorTemp.raiseAlarm['body'] = \
+            """ The KCWI detector monitor has detected that the temperature is out of range.
+
+            Check the detector temperatures, and monitor succeeding emails for warming or cooling trends.
+
+            This message will be sent at 10 minutes intervals until the problem is corrected or the 
+            alarms are disabled."""
+
+# this string is added to the log file afte the date and before the value, as in 
+# <date> <time> <tkloggerString> <keyword=value>
+DetectorTemp.tkloggerString=" TempOutOfRange detector temp now "
+
+# directory, file names for the logfile and for the status file
+DetectorTemp.setLogInfo('/sdata1400/kcwi_logs/monitors','detlog','.detlog_status')
+
+
+# parsing arguments
+args = parser.parse_args()
+if args.action:
+    DetectorTemp.action(args.action, args.minutes)
+if args.debug:
+    DetectorTemp.debug = True
+
+# is the alarm enable, disables, snoozed?
+DetectorTemp.checkStatus()
+
+# setup communication with the server
+DetectorTemp.setAndCheckService('kt1s')
+
+# define the expected value reading from a keyword
+#import ktl
+#kt1s = ktl.cache('kt1s')
+#setTemp = float(kt1s['trgtmp1'].read())
+#DetectorTemp.targetValue = setTemp
+
+# other option: setup expected value manually
+DetectorTemp.units = "K" # valid values are C or K
+DetectorTemp.targetValue = 163
+DetectorTemp.minValue = 161 # setTemp-5
+DetectorTemp.maxValue = 165 # setTemp+5
+# keyword to monitor
+DetectorTemp.valueKeyword = 'tmp1'
+# if keyword cannot be read for longer than this time, send out a warning (minutes)
+DetectorTemp.maxDelay = 10
+
+# main program
+DetectorTemp.mainCheck()
+ 
