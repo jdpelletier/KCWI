@@ -79,16 +79,23 @@ if ( $#argv > 0 ) then
 endif
 
 # verify that the user really wants to run the script...
-cat <<END
+print(
+'''
 Welcome to the KCWI initialization script. You should ALWAYS run 
 this script at the start of any observing nights of your run to 
 undo any changes that the previous observer made to KCWI and to 
 re-initialize hardware and software.
+'''
+)
+response = str(input( "Do you want to continue running the setup script? (y/n) [y]: "))
+if response in ['n', 'N']:
+    exit
 
-END
-printf "Do you want to continue running the setup script? (y/n) [y]: "
-set response = "$<"
-if( "$response" != "" && $response !~ y* && $response !~ Y* ) exit
+#set response = "$<"
+#if( "$response" != "" && $response !~ y* && $response !~ Y* ) exit
+
+
+
 
 # turn off the DCS simulator...
 #make_dcs_real
@@ -111,16 +118,15 @@ endif
 # characters in names... 
 set noglob
 #JOHNEDIT TODO figure this out
-set default = ( `show -terse -service kbds observer` )
-printf "Enter names of observing team members [$default]:\n"
-set observer = "$<"
-if ( "$observer" != "" ) then
+def = ( `show -terse -service kbds observer` )
+observer = str(input("Enter names of observing team members [" + def + "]: "))
+#set observer = "$<"
+
+if observer != "":
     #JOHNEDIT
-    #TODO bring in new tel sched api
     #modify -s kbds observer = "$observer"
-    observer = ktl.cache("kbds", "observer")
-    observer.write("$observer")
-endif
+    obs = ktl.cache("kbds", "observer")
+    obs.write(observer)
 
 
 # reset the instrument and camera keywords for the blue detector
@@ -138,7 +144,7 @@ camera.write("BLUE")
 otd = ktl.cache("kbds", "outdir")
 outdir = otd.read()
 
-printf "Output directory is currently set to $outdir\n"
+print( "Output directory is currently set to " + outdir)
 
 # reset the disk list on the blue server
 #JOHNEDIT
@@ -152,20 +158,19 @@ disklist.write("/s/sdata1400")
 #    set default = y
 #endif
 
-set default = y
-printf "Do you want to create a new data directory? (y/n) [$default]: "
-set yesno = "$<"
+def = y
+yesno = str(input("Do you want to create a new data directory? (y/n) [" + def + "]: "))
+#set yesno = "$<"
 
 # no response ==> use default...
-if ( "$yesno" == "" ) then
-    set yesno = $default
-endif
+if yesno == "":
+    yesno = def
 
 
 # positive response ==> create new directory...
-if ( "$yesno" =~ y* || "$yesno" =~ Y* ) then
+if yesno in ['y', 'Y']:
+    #TODO find newdir
     newdir
-endif
 
 # set the frame number; default is to use next number in sequence for
 # current output directory...
@@ -224,47 +229,41 @@ outfile2.write(`framerootfpc`)
 ccdp = ktl.cache("kbds", "ccdpower")
 ccdpower = ccdp.read()
 
-if ( "$ccdpower" == "1" ) then
-    printf "The CCD power is already on\n"
+if ccdpower == "1":
+    print("The CCD power is already on")
 
 else
     # reset detector...
-    set default = "y"
-    printf "Do you want to turn on power to the Blue CCD? (y/n) [$default]: "
-    set yesno = "$<"
+    def = "y"
+    yesno = str(input("Do you want to turn on power to the Blue CCD? (y/n) [" + def "]: "))
 
     # no response ==> use default...
-    if ( "$yesno" == "" ) then
-	set yesno = $default
-    endif
+    if yesno == "":
+        yesno = def
 
-    if ( "$yesno" =~ y* || "$yesno" =~ Y* ) then
-    printf "Turning on power to Blue CCD\n"
+    if yesno in ['y', 'Y']
+        print("Turning on power to Blue CCD")
 
-    #JOHNEDIT
-    #modify -s kbds ccdpower = 1
-    ccdpower = ktl.cache("kbds", "ccdpower")
-    ccdpower.write(1)
+        #JOHNEDIT
+        #modify -s kbds ccdpower = 1
+        ccdpower = ktl.cache("kbds", "ccdpower")
+        ccdpower.write(1)
 
-    #JOHNEDIT added python script
-    #sleepdots 5
-    sleepdots(5)
-    endif
+        #JOHNEDIT added python script
+        #sleepdots 5
+        sleepdots(5)
 
-endif
 
-    set default = "y"
-    printf "Do you want to reset the Blue CCD to default settings ? (y/n) [$default]: "
-    set yesno = "$<"
+def = "y"
+yesno = str(input("Do you want to reset the Blue CCD to default settings ? (y/n) [" + def + "]: "))
 
     # no response ==> use default...
-    if ( "$yesno" == "" ) then
-	set yesno = $default
-    endif
+if yesno == "":
+    yesno = def
 
     # positive response ==> create new directory...
-    if ( "$yesno" =~ y* || "$yesno" =~ Y* ) then
-    printf "Resetting detector parameters to their nominal values...\n"
+if yesno in ['y', 'Y']
+    print("Resetting detector parameters to their nominal values...")
     #JOHNEDIT
     #kcwiSetBlueDetectorDefault
     Blue.ampmodeb(ampmode=9)
@@ -272,28 +271,25 @@ endif
     Blue.ccdmodeb(ccdmode=0)
     Blue.binningb(binning='2,2')
     Blue.autoshutb(mode=1)
-    sys.stdout.write("Default detector parameters have been set\n")
-    endif
+    print("Default detector parameters have been set")
 
 #JOHNEDIT
 #set magiqPower = `show -s kp1s -terse pwstat2`
 mgqp = ktl.cache("kpls"," pwstat2")
 magiqPower = mgqp.read()
 
-if ( "$magiqPower" == "1" ) then
-    printf "Magiq power is already on"
+if magiqPower == "1":
+    print("Magiq power is already on")
 else
-    set default = "y"
-    printf "Do you want to turn on power to the Magiq Guider? (y/n) [$default]: "
-    set yesno = "$<"
+    def = "y"
+    yesno = str(input("Do you want to turn on power to the Magiq Guider? (y/n) [" + def "]: "))
 
     # no response ==> use default...
-    if ( "$yesno" == "" ) then
-	set yesno = $default
-    endif
+    if yesno == "":
+	yesno = def
 
-    if ( "$yesno" =~ y* || "$yesno" =~ Y* ) then
-    printf "Turning on power to Magiq Guider\n"
+    if yesno in ['y', 'Y']:
+        print("Turning on power to Magiq Guider")
 
     #JOHNEDIT
     #kcwiPower 1 2 on
@@ -301,8 +297,6 @@ else
     #JOHNEDIT added python script
     #sleepdots 5
     sleepdots(5)
-    endif
-endif
 
 
 
@@ -336,11 +330,13 @@ endif
 #EOF
 
 # finished...
-cat <<EOF
+print(
+'''
 
 ------------------------------------------------------------------------
                     Instrument initialization completed
 ------------------------------------------------------------------------
-EOF
 
+'''
+)
 exit
