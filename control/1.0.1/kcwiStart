@@ -92,15 +92,16 @@
 #import time
 #import subprocess
 
-set buf = $0
-set cmd = $buf:t
-set separator = "----------------------------------------"
+#TODO here
+buf = $0
+cmd = $buf:t
+separator = "----------------------------------------"
 
 
 # additional defaults
-set do_init = 1         # run init
-set eng = 0
-set oa = 0
+do_init = 1         # run init
+eng = 0
+oa = 0
 
 # parse flags...
 while ( $#argv > 0 )
@@ -304,27 +305,30 @@ endif
 #setenv DISPLAY $uidisp1
 # Start KCWI's display software (ds9) and python relay
 
-cat <<EOF
-$separator
+print(separator +
+'''
 Starting Blue image display software DS9
-$separator
-EOF
+'''
++ separator)
+
 kcwi start kcwidisplayb -D $uidisp1
 
 #TODO all kcwi start stuff not in python
 
-cat <<EOF
-$separator
+print(separator +
+'''
 Starting focal plane display software DS9
-$separator
-EOF
+'''
++ separator)
+
 kcwi start kfcdisplay -D $uidisp1
 
-cat <<EOF
-$separator
+print(separator +
+'''
 Starting Magiq display software DS9
-$separator
-EOF
+'''
++ separator)
+
 kcwi start magiqdisplay -D $uidisp2
 
 #cat <<EOF
@@ -334,41 +338,45 @@ kcwi start magiqdisplay -D $uidisp2
 #EOF
 #kcwi start soundboard
 
-cat <<EOF
-$separator
+print(separator +
+'''
 Starting Eventsound
-$separator
-EOF
+'''
++ separator)
+
 kcwi start eventsounds -D $uidisp2
 
 
-cat <<EOF
-$separator
+print(separator +
+'''
 Starting KCWI Configuration Manager Backend
-$separator
-EOF
+'''
++ separator)
+
 kcwi start kcwiConfManager
 
 
 # start eventsounds
-cat <<EOF 
-$separator
+print(separator +
+'''
 Starting eventsounds
 **** OVERRIDE: Not ready yet ****
-$separator
-EOF
+'''
++ separator)
+
 #if ( $atWMKO == 1) then
 #    ( sleep 5 ; eventsounds ) &
 #endif
 
 
 # start the Program Interface Gui
-cat <<EOF
-$separator
+print(separator +
+'''
 Starting Program Interface Gui
 **** OVERRIDE: Not ready yet ****
-$separator
-EOF
+'''
++ separator)
+
 #if ( $atWMKO == 1) then
 #    ( sleep 15 ; /net/kalahuipuaa/local/apps1/kroot/summit/instr/koa/piglet) &
 #endif
@@ -378,11 +386,12 @@ EOF
 # ---------------------------------------------------------------
 # Start the KCWI Desktop
 # ---------------------------------------------------------------
-cat <<EOF
-$separator
+print(separator +
+'''
 Starting KCWI desktop
-$separator
-EOF
+'''
++ separator)
+
 if ( $eng == 1 ) then
     kcwi start kdesktop_eng -D $uidisp0
 else if ( $oa == 1 ) then
@@ -395,12 +404,13 @@ endif
 # launch tklogger error checker...
 # ----------------------------------------------------------------------
 setenv DISPLAY $uidisp2
-cat <<EOF
-$separator
+print(separator +
+'''
 Starting TkLogger on $DISPLAY
 **** OVERRIDE: Not ready yet
-$separator
-EOF
+'''
++ separator)
+
 #if ( $atWMKO == 1 ) then
 #    kcwiStartTklogger
 #endif
@@ -410,12 +420,13 @@ EOF
 # Start the compass rose
 # ---------------------------------------------------------------
 setenv DISPLAY $uidisp2
-cat <<EOF
-$separator
+print(separator
+'''
 Starting Tkrose on $DISPLAY
 **** OVERRIDE: Not read yet
-$separator
-EOF
+'''
++ separator)
+
 #if ( $atWMKO == 1 ) then
 #    start_tkrose $uidisp2
 #endif
@@ -424,22 +435,24 @@ EOF
 # Start xterm on control2
 # ---------------------------------------------------------------
 setenv DISPLAY $uidisp2
-cat <<EOF
-$separator
+print(separator +
+'''
 Starting KCWIServerXterm on $DISPLAY
-$separator
-EOF
+'''
++ separator)
+
 #    ssh -X -l $USER ${kcwihost} xterm -title KCWIServerXterm -name Summit &
 
 
 # ----------------------------------------------------------------------
 # Arrange Guis on the desktops
 # ----------------------------------------------------------------------
-cat <<EOF
-$separator
+print(separator +
+'''
 Re-arranging GUIs
-$separator
-EOF
+'''
++ separator)
+
 
 #JOHNEDIT
 #sleep 10
@@ -450,32 +463,36 @@ time.sleep(10)
 #kcwiArrangeGuis
 subprocess.run(["kcwiArrangeGuis"])
 
-cat <<EOF
-$separator
+print(separator +
+'''
 Starting KCWI Calibration GUI
-$separator
-EOF
+'''
++ separator)
+
 kcwi start kcwiCalibrationGui -D $uidisp2
 
-cat <<EOF
-$separator
+print(separator +
+'''
 Starting KCWI Exposure GUI
-$separator
-EOF
+'''
++ separator)
+
 kcwi start kcwiExposureGui -D $uidisp1
 
-cat <<EOF
-$separator
+print(separator +
+'''
 Starting KCWI Status GUI
-$separator
-EOF
+'''
++ separator)
+
 kcwi start kcwiStatusGui -D $uidisp1
 
-cat <<EOF
-$separator
+print(separator +
+'''
 Starting KCWI Offset GUI
-$separator
-EOF
+'''
++ separator)
+
 kcwi start kcwiOffsetGui -D $uidisp2
 
 
