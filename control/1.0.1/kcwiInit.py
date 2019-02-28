@@ -52,7 +52,7 @@ print( "Output directory is currently set to [%s]" % outdirectory)
 disklist = ktl.cache("kbds", "disklist")
 disklist.write("/s/sdata1400")
 
-default = y
+default = "y"
 yesno = str(input("Do you want to create a new data directory? (y/n) [%s]: " % default))
 
 # no response ==> use default...
