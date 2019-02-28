@@ -61,8 +61,8 @@ if yesno == "":
 
 # positive response ==> create new directory...
 if yesno in ['y', 'Y']:
-    #TODO find newdir
-    newdir
+    #TODO check this
+    subprocess.Popen("newdir", stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True)
 
 # set the frame number; default is to use next number in sequence for
 # current output directory...
