@@ -89,6 +89,7 @@
 #from KCWI import PowerInit, Calibration
 #from KCWI.Util import sleepdots
 #import ktl
+#import kcwiInit
 #import time
 #import subprocess
 
@@ -104,41 +105,34 @@ eng = 0
 oa = 0
 
 # parse flags...
-while ( $#argv > 0 )
+while len(sys.argv) > 1:
 
   # check for -no_init flag...
-  if ( "$1" =~ \-nit* ) then
-    set do_init = 0
-    shift
+  if sys.argv[1] == "-no_init":
+    do_init = 0 
+    del sys.argv[1]
     continue
-  endif
 
   # check for -eng flag...
-  if ( "$1" =~ \-eng* ) then
-    set eng = 1
-    shift
+  if sys.argv[1] == "-eng":
+    eng = 1 
+    del sys.argv[1]
     continue
-  endif
 
   # check for -oa flag...
-  if ( "$1" =~ \-oa* ) then
-    set oa = 1
-    shift
+  if  sys.argv[1] == "-oa":
+    oa = 1 
+    del sys.argv[1]
     continue
-  endif
-
-
 
   # exit flag check if no flags remain...
   break
 
-end
 
 # validate arguments...
-if ( $#argv > 0) then
-    echo "Usage: $0 [-no_init]"
-    exit 1
-endif
+if len(sys.argv) > 1:
+    echo "Usage: python3 kcwiStart.py [-no_init] [-eng] [-oa]"
+    exit
 
 # -------------------------------------------------------------------
 # check for daemons...NOTE that we do NOT check on watchfcs, watchrot,
@@ -175,11 +169,11 @@ endif
 # Warn observer if other rpc tasks are currently running and under
 # what accounts.
 # -------------------------------------------------------------------
-set keepgoing = 1
+keepgoing = 1
 
   ctx > /dev/null
-  if ( $status > 0 ) then
-    set message_file = /tmp/$cmd.$$
+  if status > 0:
+    message_file = /tmp/$cmd.$$
     cat >! $message_file  <<EOF
 Can't start KCWI software. There is something wrong with the software running on kcwiserver.
 
@@ -203,10 +197,10 @@ if ( ! $?DISPLAY) then
 endif
 
 # set display variables...
-    set uidisp0 = `uidisp 0`
-    set uidisp1 = `uidisp 1`
-    set uidisp2 = `uidisp 2`
-    set uidisp3 = `uidisp 3`
+    uidisp0 = `uidisp 0`
+    uidisp1 = `uidisp 1`
+    uidisp2 = `uidisp 2`
+    uidisp3 = `uidisp 3`
 
 #echo "uidisp0 is set to ${uidisp0}"
 #echo "uidisp1 is set to ${uidisp1}"
@@ -219,11 +213,11 @@ sleepdots(3)
 # ---------------------------------------------------------------
 # allow numbered user to restore default settings if desired...
 # ---------------------------------------------------------------
-if ( $do_init ) then
+if do_init == 1:
     clear
-    kcwiInit
-    if ( $status > 0 ) then
-    set message_file = /tmp/$cmd.$$
+    kcwiInit()
+    if status > 0:
+    message_file = /tmp/$cmd.$$
     cat >! $message_file  <<EOF
 Can't start KCWI software. Some of the mechanisms are locked.
 
@@ -234,7 +228,7 @@ EOF
     \rm $message_file
     exit 1
   endif
-endif
+
 
 # ---------------------------------------------------------------
 # ensure that MOSFIRE watchslew is running ...
@@ -392,13 +386,13 @@ Starting KCWI desktop
 '''
 + separator)
 
-if ( $eng == 1 ) then
+if eng == 1:
     kcwi start kdesktop_eng -D $uidisp0
-else if ( $oa == 1 ) then
+elif oa == 1:
     kcwi start kdesktop_oa -D $uidisp0
-else
+else:
     kcwi start kdesktop -D $uidisp0
-endif
+
 
 # ----------------------------------------------------------------------
 # launch tklogger error checker...
@@ -509,15 +503,16 @@ Calibration.hatch("open")
 Calibration.hatch("close")
 
 # print completion message....
-cat <<EOF
-
+
+print(
+'''
       ----------------------------------------------------------
 		KDESKTOP might take a while to appear
       ----------------------------------------------------------
 		       KCWI startup complete!
       ----------------------------------------------------------
-EOF
-printf "\a\nPress <Enter> to exit..."
-set response = "$<"
+''')
+
+response = input(str("Press <Enter> to exit..."))
 
 exit
