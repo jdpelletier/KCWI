@@ -11,39 +11,50 @@ import subprocess
 separator = "----------------------------------------"
 
 # additional defaults
-do_init = 1         # run init
-eng = 0 
-oa = 0 
-
+#do_init = 1         # run init
+#eng = 0 
+#oa = 0 
 # parse flags...
-while len(sys.argv) > 1:
+#with argparser
 
-  # check for -no_init flag...
-  if sys.argv[1] == "-no_init":
-    do_init = 0
-    del sys.argv[1]
-    continue
+description = "Start KCWI"
+parser = argparse.ArgumentParser(description=description)
+parser.add_argument('-no_init', required=False, default=False, action='store_true', help='Run without init script')
+parser.add_argument('-eng',required=False, default=False, action='store_true', help='Run in engineering mode')
+parser.add_argument('-oa',required=False, default=False, action='store_true', help='Run in OA mode')
 
-  # check for -eng flag...
-  if sys.argv[1] == "-eng":
-    eng = 1
-    del sys.argv[1]
-    continue
+args = parser.parse_args()
 
-  # check for -oa flag...
-  if  sys.argv[1] == "-oa":
-    oa = 1
-    del sys.argv[1]
-    continue
-
-  # exit flag check if no flags remain...
-  break
-
-
-# validate arguments...
-if len(sys.argv) > 1:
-    echo "Usage: python3 kcwiStart.py [-no_init] [-eng] [-oa]"
-    exit
+###
+#old way arguments
+#while len(sys.argv) > 1:
+#
+#  # check for -no_init flag...
+#  if sys.argv[1] == "-no_init":
+#    do_init = 0
+#    del sys.argv[1]
+#    continue
+#
+#  # check for -eng flag...
+#  if sys.argv[1] == "-eng":
+#    eng = 1
+#    del sys.argv[1]
+#    continue
+#
+#  # check for -oa flag...
+#  if  sys.argv[1] == "-oa":
+#    oa = 1
+#    del sys.argv[1]
+#    continue
+#
+#  # exit flag check if no flags remain...
+#  break
+#
+#
+## validate arguments...
+#if len(sys.argv) > 1:
+#    echo "Usage: python3 kcwiStart.py [-no_init] [-eng] [-oa]"
+#    exit
 
 
 # -------------------------------------------------------------------
