@@ -4,12 +4,13 @@ from KCWI.Util import sleepdots
 import ktl
 import sys
 import subprocess
+import argparse
 
 # check arguments
 
-if len(sys.argv) > 1:
-    print("Usage: python kcwiInit.py")
-    exit
+description = "KCWI Initialization Script"
+parser = argparse.ArgumentParser(description=description)
+args = parser.parse_args()
 
 # verify that the user really wants to run the script...
 print(
@@ -61,8 +62,9 @@ if yesno == "":
 
 # positive response ==> create new directory...
 if yesno in ['y', 'Y']:
-    #TODO check this
-    subprocess.Popen("newdir", stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True)
+    #TODO check disklist
+    #subprocess.Popen("newdir", stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True)
+    Procs.newdir(disk=disklist)
 
 # set the frame number; default is to use next number in sequence for
 # current output directory...
