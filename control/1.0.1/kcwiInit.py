@@ -22,8 +22,8 @@ re-initialize hardware and software.
 '''
 )
 response = str(input( "Do you want to continue running the setup script? (y/n) [y]: "))
-if response in ['n', 'N']:
-    exit
+if response in ['n', 'N', 'no', 'No']:
+    sys.exit()
 
 subprocess.Popen("kcwiUnlockAllServers", stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True)
 
@@ -48,7 +48,7 @@ camera.write("BLUE")
 outdirectory_keyword = ktl.cache("kbds", "outdir")
 outdirectory = outdirectory_keyword.read()
 
-print( "Output directory is currently set to [%s]" % outdirectory)
+say( "Output directory is currently set to [%s]" % outdirectory)
 
 disklist = ktl.cache("kbds", "disklist")
 disklist.write("/s/sdata1400")
@@ -64,7 +64,7 @@ if yesno == "":
 if yesno in ['y', 'Y']:
     #TODO check disklist
     #subprocess.Popen("newdir", stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True)
-    Procs.newdir(disk=disklist)
+    Procs.newdir()
 
 # set the frame number; default is to use next number in sequence for
 # current output directory...
