@@ -4,6 +4,7 @@ from KCWI import PowerInit, Calibration
 from KCWI.Util import sleepdots
 import kcwiInit
 import ktl
+import os
 import sys
 import time
 import subprocess
@@ -12,13 +13,7 @@ import argparse
 separator = "----------------------------------------"
 mf = open('message_file', 'w')
 
-
-# additional defaults
-#do_init = 1         # run init
-#eng = 0 
-#oa = 0 
 # parse flags...
-#with argparser
 
 description = "Start KCWI"
 parser = argparse.ArgumentParser(description=description)
@@ -37,61 +32,45 @@ args = parser.parse_args()
 # -------------------------------------------------------------------
 
 
-#TODO Figure this out
-#
-#running_daemons = []
-#for daemon in (autodisplay, ds9)
-#    i = `get_kcwi_pid kcwidisplayb`
-#    if i != "":
-#        running_daemons = (running_daemons, daemon)
-#    endif
-#end
-#
-#if ( $#running_daemons != 0 ) then
-#    set message_file = /tmp/$cmd.$$
-#    cat >! $message_file  <<EOF
-#Can't start KCWI software because these daemons are already running:
-#
-#    $running_daemons
-#
-#See output below.  You must stop these conflicting daemons to launch
-#KCWI software!
-#
-#EOF
-#    ct >> $message_file
+
+running_daemons = []
+for daemon in (autodisplay, ds9):
+    i = subprocess.Popen("get_kcwi_pid kcwidisplayb", stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True)
+    if i != "":
+        running_daemons.append(daemon)
+
+if len(running_daemons) != 0:
+    mf.write("Can't start KCWI software because these daemons are already running:\n%s\nSee output below. You must stop these conflicting daemons to launch KCWI software!" % running_daemons)
+#TODO figure out how to capture
+    ct = subprocess.Popen("ct", stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True) 
+    (output, err) = ctx.communicate()
+    mf.write(output)
 #    tkmessage -type error < $message_file
-#    \rm $message_file
-#    exit 1
-#endif
+    os.remove("message_file")
+    sys.exit(1)
 
 # -------------------------------------------------------------------
 # Warn observer if other rpc tasks are currently running and under
 # what accounts.
 # -------------------------------------------------------------------
 
-#keepgoing = 1 
-#
-#  ctx > /dev/null
-#  if status > 0:
-#    message_file = /tmp/$cmd.$$
-#    cat >! $message_file  <<EOF
-#Can't start KCWI software. There is something wrong with the software running on kcwiserver.
-#
-#Please check output below and inform the Support Astronomer.
-#
-#EOF
-#    ctx >> $message_file
+keepgoing = 1 
+
+ctx = subprocess.Popen("ctx", stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True)
+(output, err) = ctx.communicate()
+if err > 0:
+    mf.write("\nCan't start KCWI software. There is something wrong with the software running on kcwiserver.\n\nPlease check output below and inform the Support Astronomer.")
+    mf.write(output)
 #    tkmessage -type error < $message_file
-#    \rm $message_file
-#    exit 1
-#  endif
+    os.remove("message_file")
+    sys.exit(1)
 
 
 # -------------------------------------------------------------------
 # define display layout appropriate for number of screens on host...
 # -------------------------------------------------------------------
 
-if ( ! $?DISPLAY) then
+if os.environ.get('DISPLAY') is None:
     print("ERROR: must set DISPLAY before running this program")
     sys.exit(1)
 
@@ -119,8 +98,8 @@ if do_init == 1:
     subprocess.call('clear')
     kcwiInit()
     if status > 0:
-    mf.write('Can\'t start KCWI software. Some of the mechanisms are locked.
-              Please inform the Support Astronomer.')
+    mf.write("Can't start KCWI software. Some of the mechanisms are locked.
+              Please inform the Support Astronomer.")
     tkmessage -type error < $message_file
     \rm $message_file
     sys.exit(1)
