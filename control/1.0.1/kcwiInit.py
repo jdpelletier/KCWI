@@ -1,10 +1,24 @@
-from KCWI import PowerInit, Calibrations, Blue, Procs
+#! /kroot/rel/default/bin/kpython
+
+from KCWI import PowerInit, Calibration, Blue, Procs
 from KCWI.Helper import say
-from KCWI.Util import sleepdots
+#from KCWI.Util import sleepdots
 import ktl
 import sys
 import subprocess
 import argparse
+
+
+def sleepdots(seconds):
+    i = 0
+    while i < seconds:
+        i += 1
+        sys.stdout.write(".")
+        sys.stdout.flush()
+        time.sleep(1)
+
+    sys.stdout.write('\n')
+
 
 # check arguments
 
@@ -21,7 +35,8 @@ undo any changes that the previous observer made to KCWI and to
 re-initialize hardware and software.
 '''
 )
-response = str(input( "Do you want to continue running the setup script? (y/n) [y]: "))
+
+response = str(raw_input("Do you want to continue running the setup script? (y/n) [y]"))
 if response in ['n', 'N', 'no', 'No']:
     sys.exit()
 
@@ -31,7 +46,7 @@ subprocess.Popen("kcwiUnlockAllServers", stdout = subprocess.PIPE, stderr = subp
 observer_keyword = ktl.cache('kbds', 'observer')
 observer = observer_keyword.read()
 
-observer_input = input("Enter the name(s) of the observing team members [%s] " % observer)
+observer_input = raw_input("Enter the name(s) of the observing team members [%s] " % observer)
 
 if observer_input != "":
     observer_keyword.write(observer_input)
@@ -54,7 +69,7 @@ disklist = ktl.cache("kbds", "disklist")
 disklist.write("/s/sdata1400")
 
 default = "y"
-yesno = str(input("Do you want to create a new data directory? (y/n) [%s]: " % default))
+yesno = str(raw_input("Do you want to create a new data directory? (y/n) [%s]: " % default))
 
 # no response ==> use default...
 if yesno == "":
@@ -69,8 +84,8 @@ if yesno in ['y', 'Y']:
 # set the frame number; default is to use next number in sequence for
 # current output directory...
 #TODO check this Procs function with Luca
-default = str(Procs.get_nextfile(channel='blue')
-frameno = input("Enter starting blue image number [%s]: " % default)
+default = str(Procs.get_nextfile(channel='blue'))
+frameno = raw_input("Enter starting blue image number [%s]: " % default)
 
 if frameno == "":
     frameno = default
@@ -88,7 +103,7 @@ outfile.write(frameroot)
 
 ### FOCAL PLANE CAMERA
 default = str(Procs.get_nextfile(channel='fpc'))
-frameno = input("Enter starting focal plane camera image number [%s]: " % default)
+frameno = raw_input("Enter starting focal plane camera image number [%s]: " % default)
 
 if frameno == "":
     frameno = default
@@ -112,16 +127,16 @@ ccdpower = ccdpower_keyword.read()
 if ccdpower == "1":
     print("The CCD power is already on")
 
-else
+else:
     # reset detector...
     default = "y"
-    yesno = str(input("Do you want to turn on power to the Blue CCD? (y/n) [%s]: " % default))
+    yesno = str(raw_input("Do you want to turn on power to the Blue CCD? (y/n) [%s]: " % default))
 
     # no response ==> use default...
     if yesno == "":
         yesno = default
 
-    if yesno in ['y', 'Y']
+    if yesno in ['y', 'Y']:
         print("Turning on power to Blue CCD")
 
         #JOHNEDIT
@@ -136,14 +151,14 @@ else
 ### Blue CCD settings
 
 default = "y"
-yesno = str(input("Do you want to reset the Blue CCD to default settings ? (y/n) [%s]: " % default))
+yesno = str(raw_input("Do you want to reset the Blue CCD to default settings ? (y/n) [%s]: " % default))
 
     # no response ==> use default...
 if yesno == "":
     yesno = default
 
     # positive response ==> reset
-if yesno in ['y', 'Y']
+if yesno in ['y', 'Y']:
     print("Resetting detector parameters to their nominal values...")
     Blue.ampmodeb(ampmode=9)
     Blue.gainmulb(gainmul=10)
@@ -154,14 +169,14 @@ if yesno in ['y', 'Y']
 
 ### Magiq Guider
 
-magiqPower_keyword = ktl.cache("kpls"," pwstat2")
+magiqPower_keyword = ktl.cache("kp1s","pwstat2")
 magiqPower = magiqPower_keyword.read()
 
 if magiqPower == "1":
     print("Magiq power is already on")
-else
+else:
     default = "y"
-    yesno = str(input("Do you want to turn on power to the Magiq Guider? (y/n) [%s]: " % default))
+    yesno = str(raw_input("Do you want to turn on power to the Magiq Guider? (y/n) [%s]: " % default))
 
     # no response ==> use default...
     if yesno == "":
