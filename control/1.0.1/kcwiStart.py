@@ -1,7 +1,7 @@
 #! /kroot/rel/default/bin/kpython
 
 from KCWI import PowerInit, Calibration
-from KCWI.Util import sleepdots
+#from KCWI.Util import sleepdots
 import kcwiInit
 import ktl
 import os
@@ -10,8 +10,21 @@ import time
 import subprocess
 import argparse
 
+
+def sleepdots(seconds):
+    i = 0
+    while i < seconds:
+        i += 1
+        sys.stdout.write(".")
+        sys.stdout.flush()
+        time.sleep(1)
+
+    sys.stdout.write('\n')
+
+
 separator = "----------------------------------------"
-mf = open('message_file', 'w')
+#####TODO delete this if we get rid of message file stuff
+#mf = open('message_file', 'w')
 
 # parse flags...
 
@@ -40,13 +53,13 @@ for daemon in (autodisplay, ds9):
         running_daemons.append(daemon)
 
 if len(running_daemons) != 0:
-    mf.write("Can't start KCWI software because these daemons are already running:\n%s\nSee output below. You must stop these conflicting daemons to launch KCWI software!" % running_daemons)
-#TODO figure out how to capture
-    ct = subprocess.Popen("ct", stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True) 
-    (output, err) = ctx.communicate()
-    mf.write(output)
+    print("Can't start KCWI software because these daemons are already running:\n%s\nSee output below. You must stop these conflicting daemons to launch KCWI software!" % running_daemons)
+######TODO delete this or add it in
+#    ct = subprocess.Popen("ct", stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True) 
+#    (output, err) = ctx.communicate()
+#    mf.write(output)
 #    tkmessage -type error < $message_file
-    os.remove("message_file")
+#    os.remove("message_file")
     sys.exit(1)
 
 # -------------------------------------------------------------------
@@ -54,23 +67,22 @@ if len(running_daemons) != 0:
 # what accounts.
 # -------------------------------------------------------------------
 
-keepgoing = 1 
-
-ctx = subprocess.Popen("ctx", stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True)
-(output, err) = ctx.communicate()
-if err > 0:
-    mf.write("\nCan't start KCWI software. There is something wrong with the software running on kcwiserver.\n\nPlease check output below and inform the Support Astronomer.")
-    mf.write(output)
+######TODO Delete this or add it in
+#ctx = subprocess.Popen("ctx", stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True)
+#(output, err) = ctx.communicate()
+#if err > 0:
+#    mf.write("\nCan't start KCWI software. There is something wrong with the software running on kcwiserver.\n\nPlease check output below and inform the Support Astronomer.")
+#    mf.write(output)
 #    tkmessage -type error < $message_file
-    os.remove("message_file")
-    sys.exit(1)
+#    os.remove("message_file")
+#    sys.exit(1)
 
 
 # -------------------------------------------------------------------
 # define display layout appropriate for number of screens on host...
 # -------------------------------------------------------------------
 
-if os.environ.get('DISPLAY') is None:
+if os.environ.get("DISPLAY") is None:
     print("ERROR: must set DISPLAY before running this program")
     sys.exit(1)
 
@@ -98,10 +110,10 @@ if do_init == 1:
     subprocess.call('clear')
     kcwiInit()
     if status > 0:
-    mf.write("Can't start KCWI software. Some of the mechanisms are locked.
-              Please inform the Support Astronomer.")
-    tkmessage -type error < $message_file
-    \rm $message_file
+    print("Can't start KCWI software. Some of the mechanisms are locked.\nPlease inform the Support Astronomer.")
+#####TODO figure out with other message file stuff
+#    tkmessage -type error < $message_file
+#    \rm $message_file
     sys.exit(1)
 
 
@@ -120,15 +132,12 @@ Starting Blue image display software DS9
 
 subprocess.Popen("kcwi start kcwidisplayb -D $uidisp1", stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True)
 
-#TODO all kcwi start stuff not in python
 
 print(separator +
 '''
 Starting focal plane display software DS9
 '''
 + separator)
-
-kcwi start kfcdisplay -D $uidisp1
 
 subprocess.Popen("kcwi start kfcdisplay -D $uidisp1", stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True)
 
@@ -138,7 +147,6 @@ Starting Magiq display software DS9
 '''
 + separator)
 
-kcwi start magiqdisplay -D $uidisp2
 
 subprocess.Popen("kcwi start magiqdisplay -D $uidisp2", stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True)
 
@@ -192,7 +200,8 @@ else:
 # ----------------------------------------------------------------------
 # launch tklogger error checker...
 # ----------------------------------------------------------------------
-setenv DISPLAY $uidisp2
+os.environ("DISPLAY") = uidisp2
+
 print(separator +
 '''
 Starting TkLogger on $DISPLAY
@@ -207,7 +216,8 @@ Starting TkLogger on $DISPLAY
 # ---------------------------------------------------------------
 # Start the compass rose
 # ---------------------------------------------------------------
-setenv DISPLAY $uidisp2
+os.environ("DISPLAY") = uidisp2
+
 print(separator
 '''
 Starting Tkrose on $DISPLAY
@@ -222,7 +232,8 @@ Starting Tkrose on $DISPLAY
 # ---------------------------------------------------------------
 # Start xterm on control2
 # ---------------------------------------------------------------
-setenv DISPLAY $uidisp2
+os.environ("DISPLAY") = uidisp2
+
 print(separator +
 '''
 Starting KCWIServerXterm on $DISPLAY
@@ -242,8 +253,8 @@ Re-arranging GUIs
 
 time.sleep(10)
 
-#TODO arrange guis not in python
-subprocess.run(["kcwiArrangeGuis"])
+#TODO rewrite arrange guis in python
+subprocess.Popen("kcwiArrangeGuis", stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True)
 
 print(separator +
 '''
@@ -298,6 +309,6 @@ print(
       ----------------------------------------------------------
 ''')
 
-response = input(str("Press <Enter> to exit..."))
+response = raw_input("Press <Enter> to exit...")
 
 sys.exit(0)
