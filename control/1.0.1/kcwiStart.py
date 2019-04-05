@@ -123,6 +123,22 @@ if do_init == 1:
 #setenv DISPLAY $uidisp1
 # Start KCWI's display software (ds9) and python relay
 
+###TODO adding dictionary
+#
+#start = {}
+#start['Help'] = ['Starting Blue image display software DS9', 'Starting focal plane display software DS9',
+#                 'Starting Magiq display software DS9', 'Starting Eventsound', 'Starting KCWI Configuration Manager Backend',
+#                 'Starting eventsounds\n**** OVERRIDE: Not ready yet ****', 
+#                 'Starting Program Interface Gui\n**** OVERRIDE: Not ready yet ****',
+#                 'Starting KCWI desktop', 'Starting TkLogger on $DISPLAY\n**** OVERRIDE: Not ready yet ****',
+#                 'Starting Tkrose on $DISPLAY\n**** OVERRIDE: Not ready yet ****', 'Starting KCWIServerXterm on $DISPLAY',
+#                 'Re-arranging GUIs', 'Starting KCWI Calibration GUI', 'Starting KCWI Exposure GUI', 'Starting KCWI Status GUI',
+#                 'Starting KCWI Offset GUI']
+#                  
+#start['tool'] = ['kcwidisplayb', 'kfcdisplay', 'magiqdisplay', 'eventsounds', 'kcwiConfManager', 'kdesktop_eng', 'kdesktop_oa',
+#                 'kdesktop', 'kcwiArrangeGuis', 'kcwiCalibrationGui', 'kcwiExposureGui', 'kcwiStatusGui', 'kcwiOffsetGui']
+#
+#start['display'] = ['uidisp0','uidisp1', 'uidisp2', 'uidisp3']
 
 print(separator +
 '''
@@ -204,10 +220,10 @@ os.environ("DISPLAY") = uidisp2
 
 print(separator +
 '''
-Starting TkLogger on $DISPLAY
+Starting TkLogger on %s
 **** OVERRIDE: Not ready yet
 '''
-+ separator)
+% os.getenv("DISPLAY") + separator)
 
 #if ( $atWMKO == 1 ) then
 #    kcwiStartTklogger
@@ -220,10 +236,10 @@ os.environ("DISPLAY") = uidisp2
 
 print(separator
 '''
-Starting Tkrose on $DISPLAY
+Starting Tkrose on %s
 **** OVERRIDE: Not read yet
 '''
-+ separator)
+% os.getenv("DISPLAY") + separator)
 
 #if ( $atWMKO == 1 ) then
 #    start_tkrose $uidisp2
@@ -236,9 +252,9 @@ os.environ("DISPLAY") = uidisp2
 
 print(separator +
 '''
-Starting KCWIServerXterm on $DISPLAY
+Starting KCWIServerXterm on %s
 '''
-+ separator)
+% os.getenv("DISPLAY") + separator)
 
 #    ssh -X -l $USER ${kcwihost} xterm -title KCWIServerXterm -name Summit &
 
